@@ -48,8 +48,8 @@ export default async function Dashboard() {
                 <li>Generate matching visuals</li>
               </ul>
               <div className="mt-auto w-full">
-                <Button className="w-full h-12 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95">
-                  Import My Story →
+                <Button asChild className="w-full h-12 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95">
+                  <Link href="/import-story">Import My Story →</Link>
                 </Button>
               </div>
             </Card>
