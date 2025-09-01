@@ -95,6 +95,22 @@ export default function GenerateCharacters() {
     }
   };
 
+  const handleUploadFile = (id: string, file: File | null) => {
+    if (!file) return;
+    const allowedTypes = ["image/png", "image/jpeg", "image/jpg"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error("Unsupported file format", { description: "Please upload a PNG or JPEG image." });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) return;
+      setCharacters(prev => prev.map(c => c.id === id ? { ...c, imageDataUrl: dataUrl, hasGenerated: true, isGenerating: false } : c));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleContinue = () => {
     // Navigate to webtoon builder
     console.log("Characters:", characters);
@@ -173,10 +189,22 @@ export default function GenerateCharacters() {
                       </>
                     )}
                   </Button>
+                  <input
+                    id={`file-${character.id}`}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    className="hidden"
+                    onChange={(e) => handleUploadFile(character.id, e.target.files?.[0] || null)}
+                  />
                   <Button
                     variant="outline"
                     className="border-white/20 text-white hover:bg-white/10"
-                    disabled={character.isGenerating}
+                    disabled={character.isGenerating || !!character.imageDataUrl}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const input = document.getElementById(`file-${character.id}`) as HTMLInputElement | null;
+                      input?.click();
+                    }}
                   >
                     <Upload className="h-4 w-4 mr-2" />
                     Upload Character
