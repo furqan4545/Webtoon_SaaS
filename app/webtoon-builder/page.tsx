@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Wand2 } from "lucide-react";
 import Header from "../dashboard/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -9,6 +10,8 @@ interface SceneItem {
   id: string;
   storyText: string;
   description: string;
+  imageDataUrl?: string;
+  isGenerating?: boolean;
 }
 
 export default function WebtoonBuilder() {
@@ -16,6 +19,28 @@ export default function WebtoonBuilder() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasRun = useRef(false);
+
+  const handleGenerateScene = async (index: number) => {
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
+    try {
+      const characters = JSON.parse(sessionStorage.getItem('characters') || '[]');
+      const res = await fetch('/api/generate-scene-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sceneDescription: scenes[index].description,
+          storyText: scenes[index].storyText,
+          characterImages: characters.map((c: any, idx: number) => ({ name: c.name || `Character ${idx+1}`, dataUrl: c.imageDataUrl }))
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to generate scene image');
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
+    } catch (e) {
+      console.error(e);
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
+    }
+  };
 
   useEffect(() => {
     if (hasRun.current) return;
@@ -81,8 +106,29 @@ export default function WebtoonBuilder() {
                     <div className="text-white/80">{scene.storyText}</div>
                   </div>
                   <div className="pt-2">
-                    <Button className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white">Generate</Button>
+                    <Button
+                      className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white"
+                      disabled={scene.isGenerating}
+                      onClick={() => handleGenerateScene(i)}
+                    >
+                      {scene.isGenerating ? (
+                        <>
+                          <div className="h-4 w-4 mr-2 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="h-4 w-4 mr-2" />
+                          Generate
+                        </>
+                      )}
+                    </Button>
                   </div>
+                  {scene.imageDataUrl && (
+                    <div className="mt-4">
+                      <img src={scene.imageDataUrl} alt={`Scene ${i + 1}`} className="w-full rounded-md border border-white/10" />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
