@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "@/hooks/use-toast";
 
 export default function AnalyzingStory() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  // Guard to avoid double invocation in React Strict Mode (dev only)
+  const hasRun = useRef(false);
 
   useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
     const analyzeStory = async () => {
       try {
         const story = sessionStorage.getItem('story');
