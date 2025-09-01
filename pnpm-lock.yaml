@@ -44,6 +44,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      openai:
+        specifier: ^5.16.0
+        version: 5.16.0(ws@8.18.3)(zod@4.1.5)
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -928,6 +931,18 @@ packages:
       babel-plugin-react-compiler:
         optional: true
       sass:
+        optional: true
+
+  openai@5.16.0:
+    resolution: {integrity: sha512-hoEH8ZNvg1HXjU9mp88L/ZH8O082Z8r6FHCXGiWAzVRrEv443aI57qhch4snu07yQydj+AUAWLenAiBXhu89Tw==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
         optional: true
 
   picocolors@1.1.1:
@@ -1831,6 +1846,11 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
+
+  openai@5.16.0(ws@8.18.3)(zod@4.1.5):
+    optionalDependencies:
+      ws: 8.18.3
+      zod: 4.1.5
 
   picocolors@1.1.1: {}
 

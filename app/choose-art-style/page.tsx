@@ -37,9 +37,8 @@ export default function ChooseArtStyle() {
 
   const handleContinue = () => {
     if (selectedStyle) {
-      // TODO: Process with selected style
-      console.log("Selected style:", selectedStyle);
-      // Navigate to next step
+      // Navigate to analyzing screen
+      router.push("/analyzing-story");
     }
   };
 
