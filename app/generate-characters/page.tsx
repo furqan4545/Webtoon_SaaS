@@ -111,9 +111,13 @@ export default function GenerateCharacters() {
     reader.readAsDataURL(file);
   };
 
+  const allImagesReady = characters.length > 0 && characters.every(c => !!c.imageDataUrl);
+
   const handleContinue = () => {
-    // Navigate to webtoon builder
-    console.log("Characters:", characters);
+    if (!allImagesReady) return;
+    // Persist for builder if needed later
+    sessionStorage.setItem('characters', JSON.stringify(characters));
+    window.location.href = '/webtoon-builder';
   };
 
   if (loading) {
@@ -239,7 +243,8 @@ export default function GenerateCharacters() {
         <div className="flex justify-center">
           <Button
             onClick={handleContinue}
-            className="px-8 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95"
+            disabled={!allImagesReady}
+            className="px-8 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Go to Webtoon Builder →
           </Button>
