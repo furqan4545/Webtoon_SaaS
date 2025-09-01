@@ -15,6 +15,8 @@ interface Character {
   name: string;
   description: string;
   imageDataUrl?: string;
+  isGenerating?: boolean;
+  hasGenerated?: boolean;
 }
 
 export default function GenerateCharacters() {
@@ -74,6 +76,8 @@ export default function GenerateCharacters() {
     const character = characters.find((c) => c.id === id);
     if (!character) return;
     try {
+      // mark generating and disable upload
+      setCharacters(prev => prev.map(c => c.id === id ? { ...c, isGenerating: true } : c));
       const res = await fetch('/api/generate-character-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,10 +87,11 @@ export default function GenerateCharacters() {
       if (!res.ok || !data?.success) {
         throw new Error(data?.error || 'Failed to generate image');
       }
-      setCharacters(prev => prev.map(c => c.id === id ? { ...c, imageDataUrl: data.image } : c));
+      setCharacters(prev => prev.map(c => c.id === id ? { ...c, imageDataUrl: data.image, isGenerating: false, hasGenerated: true } : c));
     } catch (err) {
       console.error('Image generation error:', err);
       toast.error('Image generation failed', { description: err instanceof Error ? err.message : 'Unknown error' });
+      setCharacters(prev => prev.map(c => c.id === id ? { ...c, isGenerating: false } : c));
     }
   };
 
@@ -151,11 +156,28 @@ export default function GenerateCharacters() {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => generateImage(character.id)} className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white hover:opacity-95">
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    Generate Character
+                  <Button
+                    onClick={() => generateImage(character.id)}
+                    className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white hover:opacity-95"
+                    disabled={character.isGenerating}
+                  >
+                    {character.isGenerating ? (
+                      <>
+                        <div className="h-4 w-4 mr-2 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-4 w-4 mr-2" />
+                        {character.hasGenerated ? 'Generate Again' : 'Generate Character'}
+                      </>
+                    )}
                   </Button>
-                  <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
+                  <Button
+                    variant="outline"
+                    className="border-white/20 text-white hover:bg-white/10"
+                    disabled={character.isGenerating}
+                  >
                     <Upload className="h-4 w-4 mr-2" />
                     Upload Character
                   </Button>
