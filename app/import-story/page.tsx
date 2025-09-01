@@ -17,7 +17,8 @@ export default function ImportStory() {
 
   const handleProcessStory = () => {
     if (storyText.length >= 100) {
-      // Navigate to art style selection
+      // Store story in sessionStorage and navigate to art style selection
+      sessionStorage.setItem('story', storyText);
       router.push("/choose-art-style");
     }
   };

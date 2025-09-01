@@ -1,19 +1,65 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/hooks/use-toast";
 
 export default function AnalyzingStory() {
   const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate API call delay
-    const timer = setTimeout(() => {
-      // Navigate to character generation page after "analysis"
-      router.push("/generate-characters");
-    }, 3000); // 3 second delay
+    const analyzeStory = async () => {
+      try {
+        const story = sessionStorage.getItem('story');
+        const artStyle = sessionStorage.getItem('artStyle');
 
-    return () => clearTimeout(timer);
+        if (!story) {
+          toast.error("No story found", {
+            description: "Please go back and enter your story."
+          });
+          router.push("/import-story");
+          return;
+        }
+
+        const response = await fetch('/api/analyze-story', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ story, artStyle }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to analyze story');
+        }
+
+        if (data.success && data.characters) {
+          // Store the generated characters
+          sessionStorage.setItem('characters', JSON.stringify(data.characters));
+          // Navigate to character generation page
+          router.push("/generate-characters");
+        } else {
+          throw new Error('Invalid response from server');
+        }
+
+      } catch (error) {
+        console.error('Error analyzing story:', error);
+        setError(error instanceof Error ? error.message : 'Unknown error occurred');
+        toast.error("Analysis failed", {
+          description: "Failed to analyze your story. Please try again."
+        });
+        
+        // Navigate back after error
+        setTimeout(() => {
+          router.push("/choose-art-style");
+        }, 3000);
+      }
+    };
+
+    analyzeStory();
   }, [router]);
 
   return (
@@ -27,10 +73,14 @@ export default function AnalyzingStory() {
           </div>
           
           {/* Title */}
-          <h1 className="text-2xl font-bold mb-4">Analyzing Your Story with Webtoon AI</h1>
+          <h1 className="text-2xl font-bold mb-4">
+            {error ? "Analysis Failed" : "Analyzing Your Story with Webtoon AI"}
+          </h1>
           
           {/* Description */}
-          <p className="text-white/70">Intelligently detecting characters and generating descriptions...</p>
+          <p className="text-white/70">
+            {error ? error : "Intelligently detecting characters and generating descriptions..."}
+          </p>
         </div>
       </div>
     </div>

@@ -37,7 +37,8 @@ export default function ChooseArtStyle() {
 
   const handleContinue = () => {
     if (selectedStyle) {
-      // Navigate to analyzing screen
+      // Store art style and navigate to analyzing screen
+      sessionStorage.setItem('artStyle', selectedStyle);
       router.push("/analyzing-story");
     }
   };

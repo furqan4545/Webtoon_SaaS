@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../dashboard/Header";
 import { Button } from "@/components/ui/button";
@@ -8,34 +8,45 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, X, Wand2, Upload, Plus } from "lucide-react";
 import Link from "next/link";
+import { toast } from "@/hooks/use-toast";
 
-// Mock data that would come from API response
-const mockCharacters = [
-  {
-    id: "days",
-    name: "Days",
-    description: "A young adult with expressive brown eyes and casual modern clothing. Athletic build with confident posture and determined expression."
-  },
-  {
-    id: "princess",
-    name: "Princess",
-    description: "A middle-aged person with kind features and professional attire. Medium height with gentle demeanor and warm smile."
-  },
-  {
-    id: "aiyana",
-    name: "Aiyana",
-    description: "A tall individual with sharp features and stylish dark clothing. Lean build with intelligent eyes and composed manner."
-  },
-  {
-    id: "character4",
-    name: "Character 4",
-    description: ""
-  }
-];
+interface Character {
+  id: string;
+  name: string;
+  description: string;
+}
 
 export default function GenerateCharacters() {
-  const [characters, setCharacters] = useState(mockCharacters);
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
+
+  useEffect(() => {
+    const loadCharacters = () => {
+      try {
+        const storedCharacters = sessionStorage.getItem('characters');
+        if (storedCharacters) {
+          const parsedCharacters = JSON.parse(storedCharacters);
+          setCharacters(parsedCharacters);
+        } else {
+          toast.error("No characters found", {
+            description: "Please go back and analyze your story first."
+          });
+          router.push("/import-story");
+        }
+      } catch (error) {
+        console.error('Error loading characters:', error);
+        toast.error("Error loading characters", {
+          description: "Failed to load character data."
+        });
+        router.push("/import-story");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCharacters();
+  }, [router]);
 
   const updateCharacterDescription = (id: string, description: string) => {
     setCharacters(prev => 
@@ -62,6 +73,17 @@ export default function GenerateCharacters() {
     // Navigate to webtoon builder
     console.log("Characters:", characters);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white/70">Loading characters...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
