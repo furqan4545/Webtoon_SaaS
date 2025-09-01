@@ -16,8 +16,10 @@ export default function ImportStory() {
   const router = useRouter();
 
   const handleProcessStory = () => {
-    // TODO: Process the story
-    console.log("Processing story:", storyText);
+    if (storyText.length >= 100) {
+      // Navigate to art style selection
+      router.push("/choose-art-style");
+    }
   };
 
   return (
@@ -55,7 +57,7 @@ For example:
 Include character descriptions, dialogue, and scene details - the more descriptive, the better we can visualize your story!"
                   value={storyText}
                   onChange={(e) => setStoryText(e.target.value)}
-                  className="min-h-[300px] bg-white/5 border-white/10 text-white placeholder:text-white/50 resize-none"
+                  className="h-[400px] bg-white/5 border-white/10 text-white placeholder:text-white/50 resize-none overflow-y-auto"
                 />
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-white/60">{storyText.length} characters</span>
