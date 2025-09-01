@@ -14,6 +14,7 @@ interface Character {
   id: string;
   name: string;
   description: string;
+  imageDataUrl?: string;
 }
 
 export default function GenerateCharacters() {
@@ -67,6 +68,26 @@ export default function GenerateCharacters() {
       name: `Character ${prev.length + 1}`,
       description: ""
     }]);
+  };
+
+  const generateImage = async (id: string) => {
+    const character = characters.find((c) => c.id === id);
+    if (!character) return;
+    try {
+      const res = await fetch('/api/generate-character-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: character.name, description: character.description }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.error || 'Failed to generate image');
+      }
+      setCharacters(prev => prev.map(c => c.id === id ? { ...c, imageDataUrl: data.image } : c));
+    } catch (err) {
+      console.error('Image generation error:', err);
+      toast.error('Image generation failed', { description: err instanceof Error ? err.message : 'Unknown error' });
+    }
   };
 
   const handleContinue = () => {
@@ -130,7 +151,7 @@ export default function GenerateCharacters() {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white hover:opacity-95">
+                  <Button onClick={() => generateImage(character.id)} className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white hover:opacity-95">
                     <Wand2 className="h-4 w-4 mr-2" />
                     Generate Character
                   </Button>
@@ -139,6 +160,11 @@ export default function GenerateCharacters() {
                     Upload Character
                   </Button>
                 </div>
+                {character.imageDataUrl && (
+                  <div className="mt-4">
+                    <img src={character.imageDataUrl} alt={`${character.name} - generated`} className="w-full rounded-md border border-white/10" />
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

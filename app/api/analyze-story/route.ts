@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
     });
 
     const content = completion.choices[0]?.message?.content || "";
+    console.log("content:", content);
     if (!content) {
       return NextResponse.json(
         { error: "No response from OpenAI" },
