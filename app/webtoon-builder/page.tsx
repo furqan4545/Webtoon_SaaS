@@ -196,12 +196,26 @@ export default function WebtoonBuilder() {
         {!loading && (
           <div className="flex justify-center mt-8">
             <Button
-              onClick={() => {
+              onClick={async () => {
                 if (!allImagesReady) return;
-                // Persist image list for preview page
-                const images = scenes.map(s => s.imageDataUrl).filter(Boolean);
-                sessionStorage.setItem('previewImages', JSON.stringify(images));
-                window.open('/webtoon-builder/preview', '_blank');
+                // Convert data URLs to blob URLs to avoid storage quota limits
+                const dataUrls = scenes.map(s => s.imageDataUrl).filter(Boolean) as string[];
+                const blobUrls: string[] = [];
+                for (const src of dataUrls) {
+                  const resp = await fetch(src);
+                  const blob = await resp.blob();
+                  const url = URL.createObjectURL(blob);
+                  blobUrls.push(url);
+                }
+                const win = window.open('/webtoon-builder/preview', '_blank');
+                // Fallback: stash tiny blob urls (short) in sessionStorage
+                try {
+                  sessionStorage.setItem('previewBlobUrls', JSON.stringify(blobUrls));
+                } catch {}
+                // Post to the new window when ready
+                setTimeout(() => {
+                  try { win?.postMessage({ type: 'webtoon-preview', images: blobUrls }, window.location.origin); } catch {}
+                }, 300);
               }}
               disabled={!allImagesReady}
               className="px-8 bg-white text-black hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"

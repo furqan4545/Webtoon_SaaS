@@ -10,11 +10,18 @@ export default function WebtoonPreview() {
     if (hasRun.current) return;
     hasRun.current = true;
     try {
-      const raw = sessionStorage.getItem('previewImages');
-      if (raw) {
-        const arr = JSON.parse(raw) as string[];
-        setImages(arr.filter(Boolean));
-      }
+      // Prefer blob URLs via postMessage
+      const handler = (e: MessageEvent) => {
+        if (e.origin !== window.location.origin) return;
+        if (e.data?.type === 'webtoon-preview' && Array.isArray(e.data?.images)) {
+          setImages(e.data.images as string[]);
+        }
+      };
+      window.addEventListener('message', handler);
+      // Fallback: read blob urls from sessionStorage (short strings)
+      const raw = sessionStorage.getItem('previewBlobUrls');
+      if (raw) setImages((JSON.parse(raw) as string[]).filter(Boolean));
+      return () => window.removeEventListener('message', handler);
     } catch (e) {
       // ignore
     }
