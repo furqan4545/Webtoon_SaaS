@@ -190,7 +190,11 @@ export default function WebtoonBuilder() {
   };
 
   const handleQuick = (q: string) => {
-    processUserText(q);
+    const input = document.getElementById('chat-input') as HTMLInputElement | null;
+    if (input) {
+      input.value = input.value ? `${input.value} ${q}` : q;
+      input.focus();
+    }
   };
 
   const handleSend = (e: any) => {
