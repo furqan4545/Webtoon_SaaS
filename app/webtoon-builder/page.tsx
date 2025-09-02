@@ -20,6 +20,7 @@ export default function WebtoonBuilder() {
   const [error, setError] = useState<string | null>(null);
   const hasRun = useRef(false);
   const [insertLoadingIndex, setInsertLoadingIndex] = useState<number | null>(null);
+  const allImagesReady = scenes.length > 0 && scenes.every(s => !!s.imageDataUrl);
 
   const handleGenerateScene = async (index: number) => {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
@@ -190,6 +191,23 @@ export default function WebtoonBuilder() {
               </div>
               </div>
             ))}
+          </div>
+        )}
+        {!loading && (
+          <div className="flex justify-center mt-8">
+            <Button
+              onClick={() => {
+                if (!allImagesReady) return;
+                // Persist image list for preview page
+                const images = scenes.map(s => s.imageDataUrl).filter(Boolean);
+                sessionStorage.setItem('previewImages', JSON.stringify(images));
+                window.open('/webtoon-builder/preview', '_blank');
+              }}
+              disabled={!allImagesReady}
+              className="px-8 bg-white text-black hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Preview Webtoon
+            </Button>
           </div>
         )}
       </main>
