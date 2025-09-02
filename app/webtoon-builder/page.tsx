@@ -162,7 +162,7 @@ export default function WebtoonBuilder() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
       <Header />
-      <main className="mx-auto max-w-6xl px-4 py-8">
+      <main className="mx-auto max-w-6xl px-4 py-8 lg:pr-[380px]">
         <h1 className="text-3xl font-bold mb-6">Create Your Webtoon</h1>
         {loading && (
           <div className="text-white/70">Generating scenes...</div>
@@ -235,8 +235,8 @@ export default function WebtoonBuilder() {
               </div>
             ))}
             </div>
-            <aside className="hidden lg:block w-[360px]">
-              <div className="sticky top-16 h-[calc(100vh-6rem)] border border-white/10 bg-white/5 backdrop-blur-sm rounded-lg flex flex-col">
+            <aside className="hidden lg:block fixed top-0 right-0 h-screen w-[360px]">
+              <div className="h-full border border-white/10 bg-white/5 backdrop-blur-sm rounded-none flex flex-col">
                 <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
                   <div className="font-semibold">Scene Editor</div>
                   <div className="text-xs bg-white/10 rounded-full px-2 py-1">Scene {selectedSceneIndex + 1}</div>
