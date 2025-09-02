@@ -35,7 +35,7 @@ export default function WebtoonBuilder() {
     "Darker lighting",
   ];
 
-  const handleGenerateScene = async (index: number) => {
+  const handleGenerateScene = async (index: number, overrideDescription?: string) => {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const characters = JSON.parse(sessionStorage.getItem('characters') || '[]');
@@ -43,7 +43,7 @@ export default function WebtoonBuilder() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sceneDescription: scenes[index].description,
+          sceneDescription: overrideDescription ?? scenes[index].description,
           storyText: scenes[index].storyText,
           characterImages: characters.map((c: any, idx: number) => ({ name: c.name || `Character ${idx+1}`, dataUrl: c.imageDataUrl }))
         })
@@ -145,8 +145,52 @@ export default function WebtoonBuilder() {
     ]);
   }, [selectedSceneIndex]);
 
+  function isValidSceneDescription(text: string): { valid: boolean; reason?: string } {
+    const t = (text || '').toLowerCase().trim();
+    if (!t) return { valid: false, reason: 'empty' };
+    // Obvious chit-chat / small talk / unrelated
+    const smallTalk = [
+      'how are you', 'what\'s up', 'whats up', 'hello', 'hi', 'hey', 'thank you', 'thanks', 'ok', 'okay', 'good morning', 'good night', 'who are you'
+    ];
+    if (smallTalk.some(p => t === p || t.startsWith(p))) return { valid: false, reason: 'smalltalk' };
+    // If it's a question directly to assistant
+    if (t.includes('?') && /\byou\b/.test(t)) return { valid: false, reason: 'question' };
+    // Very short directives we still allow (quick actions like "close-up", "wider shot")
+    const directional = [
+      'close-up', 'close up', 'wider shot', 'wide shot', 'brighter lighting', 'darker lighting', 'more romantic', 'more horror', 'more dramatic', 'add dialogue'
+    ];
+    if (directional.includes(t)) return { valid: true };
+    // Basic heuristic: has at least a few words and at least one action/visual cue
+    const wordCount = t.split(/\s+/).filter(Boolean).length;
+    const verbs = [
+      'walk', 'run', 'look', 'stare', 'smile', 'cry', 'hug', 'kiss', 'sit', 'stand', 'hold', 'say', 'shout', 'whisper', 'fight', 'open', 'close', 'enter', 'leave', 'approach', 'turn', 'glance', 'reveal', 'show', 'pan', 'zoom'
+    ];
+    const visuals = [
+      'night', 'rain', 'sunset', 'street', 'room', 'alley', 'school', 'cafe', 'city', 'forest', 'beach', 'sky', 'camera', 'panel', 'scene', 'lighting', 'shadow', 'moon', 'sunlight'
+    ];
+    const hasVerb = verbs.some(v => new RegExp(`\\b${v}(s|ed|ing)?\\b`).test(t));
+    const hasVisual = visuals.some(v => new RegExp(`\\b${v}\\b`).test(t));
+    if (wordCount >= 6 && (hasVerb || hasVisual)) return { valid: true };
+    // Allow imperative mood starting with verbs like "make", "show", "add" if long enough
+    if (/^(make|show|add|change|turn|set)\b/.test(t) && wordCount >= 5) return { valid: true };
+    return { valid: false, reason: 'too-vague' };
+  }
+
+  const processUserText = async (text: string) => {
+    const { valid } = isValidSceneDescription(text);
+    setChatMessages((prev) => [...prev, { role: 'user', text }]);
+    if (!valid) {
+      setChatMessages((prev) => [...prev, { role: 'assistant', text: 'Sorry, I am designed to help with only webtoon generation. Try modifying your prompt.' }]);
+      return;
+    }
+    // Update the selected scene's description and regenerate
+    setScenes(prev => prev.map((s, i) => i === selectedSceneIndex ? { ...s, description: text } : s));
+    setChatMessages((prev) => [...prev, { role: 'assistant', text: 'Updated the scene description. Regenerating the image...' }]);
+    await handleGenerateScene(selectedSceneIndex, text);
+  };
+
   const handleQuick = (q: string) => {
-    setChatMessages((prev) => [...prev, { role: 'user', text: q }]);
+    processUserText(q);
   };
 
   const handleSend = (e: any) => {
@@ -155,7 +199,7 @@ export default function WebtoonBuilder() {
     const input = form.querySelector('#chat-input') as HTMLInputElement | null;
     const value = input?.value?.trim();
     if (!value) return;
-    setChatMessages((prev) => [...prev, { role: 'user', text: value }]);
+    processUserText(value);
     if (input) input.value = '';
   };
 
