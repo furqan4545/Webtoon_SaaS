@@ -19,6 +19,7 @@ export default function WebtoonBuilder() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasRun = useRef(false);
+  const [insertLoadingIndex, setInsertLoadingIndex] = useState<number | null>(null);
 
   const handleGenerateScene = async (index: number) => {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
@@ -50,7 +51,7 @@ export default function WebtoonBuilder() {
       Scene_Description: s.description,
     }));
     try {
-      setLoading(true);
+      setInsertLoadingIndex(index);
       const res = await fetch('/api/insert-scene', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,7 +76,7 @@ export default function WebtoonBuilder() {
     } catch (e) {
       console.error('Insert scene error', e);
     } finally {
-      setLoading(false);
+      setInsertLoadingIndex(null);
     }
   };
 
@@ -129,7 +130,8 @@ export default function WebtoonBuilder() {
         {!loading && !error && (
           <div className="space-y-6">
             {scenes.map((scene, i) => (
-              <Card key={scene.id} className="border-white/10 bg-white/5 backdrop-blur-sm">
+              <div key={scene.id}>
+              <Card className="border-white/10 bg-white/5 backdrop-blur-sm">
                 <CardHeader>
                   <CardTitle className="text-white">Scene {i + 1}</CardTitle>
                 </CardHeader>
@@ -166,17 +168,27 @@ export default function WebtoonBuilder() {
                       <img src={scene.imageDataUrl} alt={`Scene ${i + 1}`} className="max-w-[480px] w-full rounded-md border border-white/10" />
                     </div>
                   )}
-                  <div className="pt-3">
-                    <Button
-                      variant="outline"
-                      className="border-white/20 text-white hover:bg-white/10"
-                      onClick={() => handleInsertAfter(i)}
-                    >
-                      + Insert New Panel
-                    </Button>
-                  </div>
                 </CardContent>
               </Card>
+              {/* Insert New Scene button between cards */}
+              <div className="flex justify-center py-3">
+                <Button
+                  variant="outline"
+                  className="border-white/20 text-white hover:bg-white/10"
+                  onClick={() => handleInsertAfter(i)}
+                  disabled={insertLoadingIndex === i}
+                >
+                  {insertLoadingIndex === i ? (
+                    <>
+                      <div className="h-4 w-4 mr-2 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      Inserting...
+                    </>
+                  ) : (
+                    "+ Insert New Scene"
+                  )}
+                </Button>
+              </div>
+              </div>
             ))}
           </div>
         )}
