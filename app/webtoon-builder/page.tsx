@@ -235,7 +235,7 @@ export default function WebtoonBuilder() {
               </div>
             ))}
             </div>
-            <aside className="hidden lg:block fixed top-0 right-0 h-screen w-[360px]">
+            <aside className="hidden lg:block fixed top-[64px] right-0 h-[calc(100vh-64px)] w-[360px]">
               <div className="h-full border border-white/10 bg-white/5 backdrop-blur-sm rounded-none flex flex-col">
                 <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
                   <div className="font-semibold">Scene Editor</div>
