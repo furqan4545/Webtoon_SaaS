@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { resetPasswordFunc } from "./action";
@@ -35,7 +35,7 @@ const formSchema = z.object({
   passwordConfirm: z.string().min(6),
 });
 
-export default function ResetPassword() {
+function ResetPasswordInner() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false); // Add loading state
   const router = useRouter();
@@ -171,5 +171,20 @@ export default function ResetPassword() {
         </CardContent>
       </Card>
     </main>
+  );
+}
+
+export default function ResetPassword() {
+  return (
+    <Suspense fallback={
+      <main className="flex justify-center items-center min-h-screen">
+        <div className="text-white/70 flex items-center gap-2">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Loading...
+        </div>
+      </main>
+    }>
+      <ResetPasswordInner />
+    </Suspense>
   );
 }
