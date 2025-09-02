@@ -21,6 +21,19 @@ export default function WebtoonBuilder() {
   const hasRun = useRef(false);
   const [insertLoadingIndex, setInsertLoadingIndex] = useState<number | null>(null);
   const allImagesReady = scenes.length > 0 && scenes.every(s => !!s.imageDataUrl);
+  const [selectedSceneIndex, setSelectedSceneIndex] = useState<number>(0);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'system' | 'user' | 'assistant'; text: string }>>([]);
+  const quickActions = [
+    "More dramatic",
+    "Add dialogue",
+    "Lighter mood",
+    "More romantic",
+    "More horror",
+    "Wider shot",
+    "Close-up",
+    "Brighter lighting",
+    "Darker lighting",
+  ];
 
   const handleGenerateScene = async (index: number) => {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
@@ -108,6 +121,13 @@ export default function WebtoonBuilder() {
           description: scenesObj[key]?.Scene_Description || '',
         }));
         setScenes(items);
+        if (items[0]) {
+          setSelectedSceneIndex(0);
+          setChatMessages([
+            { role: 'system', text: 'You are currently editing Scene 1' },
+            { role: 'assistant', text: `Scene description: ${items[0].description}` },
+          ]);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Unknown error');
       } finally {
@@ -116,6 +136,28 @@ export default function WebtoonBuilder() {
     };
     run();
   }, []);
+
+  useEffect(() => {
+    if (!scenes[selectedSceneIndex]) return;
+    setChatMessages([
+      { role: 'system', text: `You are currently editing Scene ${selectedSceneIndex + 1}` },
+      { role: 'assistant', text: `Scene description: ${scenes[selectedSceneIndex].description}` },
+    ]);
+  }, [selectedSceneIndex]);
+
+  const handleQuick = (q: string) => {
+    setChatMessages((prev) => [...prev, { role: 'user', text: q }]);
+  };
+
+  const handleSend = (e: any) => {
+    e.preventDefault();
+    const form = e.currentTarget as HTMLFormElement;
+    const input = form.querySelector('#chat-input') as HTMLInputElement | null;
+    const value = input?.value?.trim();
+    if (!value) return;
+    setChatMessages((prev) => [...prev, { role: 'user', text: value }]);
+    if (input) input.value = '';
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
@@ -129,10 +171,11 @@ export default function WebtoonBuilder() {
           <div className="text-red-400 mb-4">{error}</div>
         )}
         {!loading && !error && (
-          <div className="space-y-6">
+          <div className="flex gap-6">
+            <div className="flex-1 space-y-6">
             {scenes.map((scene, i) => (
-              <div key={scene.id}>
-              <Card className="border-white/10 bg-white/5 backdrop-blur-sm">
+              <div key={scene.id} onClick={() => setSelectedSceneIndex(i)}>
+              <Card className={`border-white/10 bg-white/5 backdrop-blur-sm cursor-pointer ${selectedSceneIndex === i ? 'ring-2 ring-fuchsia-500/60' : ''}`}>
                 <CardHeader>
                   <CardTitle className="text-white">Scene {i + 1}</CardTitle>
                 </CardHeader>
@@ -191,6 +234,31 @@ export default function WebtoonBuilder() {
               </div>
               </div>
             ))}
+            </div>
+            <aside className="hidden lg:block w-[360px]">
+              <div className="sticky top-16 h-[calc(100vh-6rem)] border border-white/10 bg-white/5 backdrop-blur-sm rounded-lg flex flex-col">
+                <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                  <div className="font-semibold">Scene Editor</div>
+                  <div className="text-xs bg-white/10 rounded-full px-2 py-1">Scene {selectedSceneIndex + 1}</div>
+                </div>
+                <div className="px-3 py-2 border-b border-white/10 overflow-x-auto whitespace-nowrap space-x-2">
+                  {quickActions.map((q) => (
+                    <button key={q} onClick={() => handleQuick(q)} className="inline-block text-xs bg-white/10 hover:bg-white/20 rounded-full px-3 py-1 mr-2">{q}</button>
+                  ))}
+                </div>
+                <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+                  {chatMessages.map((m, idx) => (
+                    <div key={idx} className={m.role === 'user' ? 'text-right' : 'text-left'}>
+                      <div className={`inline-block text-sm px-3 py-2 rounded-lg ${m.role === 'user' ? 'bg-fuchsia-600 text-white' : 'bg-white/10 text-white'}`}>{m.text}</div>
+                    </div>
+                  ))}
+                </div>
+                <form onSubmit={handleSend} className="p-3 border-t border-white/10 flex gap-2">
+                  <input id="chat-input" name="chat" autoComplete="off" placeholder="Describe your change..." className="flex-1 bg-transparent border border-white/15 rounded-md px-3 py-2 text-sm outline-none focus:border-fuchsia-500/60" />
+                  <Button type="submit" className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white">Send</Button>
+                </form>
+              </div>
+            </aside>
           </div>
         )}
         {!loading && (
