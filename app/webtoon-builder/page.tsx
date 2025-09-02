@@ -42,6 +42,43 @@ export default function WebtoonBuilder() {
     }
   };
 
+  const handleInsertAfter = async (index: number) => {
+    // Prepare compact scenes JSON payload
+    const payload = scenes.map((s, i) => ({
+      id: `scene_${i + 1}`,
+      Story_Text: s.storyText,
+      Scene_Description: s.description,
+    }));
+    try {
+      setLoading(true);
+      const res = await fetch('/api/insert-scene', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scenes: payload,
+          insertAfterIndex: index,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to insert scene');
+      const newScene = {
+        id: `scene_${index + 2}`,
+        storyText: data.scene?.Story_Text || '',
+        description: data.scene?.Scene_Description || '',
+      } as SceneItem;
+      // Insert new scene after index and renumber display only
+      setScenes(prev => {
+        const copy = [...prev];
+        copy.splice(index + 1, 0, newScene);
+        return copy;
+      });
+    } catch (e) {
+      console.error('Insert scene error', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (hasRun.current) return;
     hasRun.current = true;
@@ -125,10 +162,19 @@ export default function WebtoonBuilder() {
                     </Button>
                   </div>
                   {scene.imageDataUrl && (
-                    <div className="mt-4">
-                      <img src={scene.imageDataUrl} alt={`Scene ${i + 1}`} className="w-full rounded-md border border-white/10" />
+                    <div className="mt-4 flex justify-center">
+                      <img src={scene.imageDataUrl} alt={`Scene ${i + 1}`} className="max-w-[480px] w-full rounded-md border border-white/10" />
                     </div>
                   )}
+                  <div className="pt-3">
+                    <Button
+                      variant="outline"
+                      className="border-white/20 text-white hover:bg-white/10"
+                      onClick={() => handleInsertAfter(i)}
+                    >
+                      + Insert New Panel
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
