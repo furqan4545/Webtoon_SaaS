@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Wand2, ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
+import ChangeArtStyleDialog from "@/components/ChangeArtStyleDialog";
 import Header from "../dashboard/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -238,6 +239,14 @@ export default function WebtoonBuilder() {
             <ChevronLeft className="h-4 w-4 mr-1" /> Back
           </Button>
           <h1 className="text-3xl font-bold">Create Your Webtoon</h1>
+          <div className="ml-auto">
+            <ChangeArtStyleDialog
+              initialStyle={"Webtoon comic"}
+              onSave={(style) => {
+                try { sessionStorage.setItem('artStyle', style); } catch {}
+              }}
+            />
+          </div>
         </div>
         {loading && (
           <div className="text-white/70">Generating scenes...</div>
