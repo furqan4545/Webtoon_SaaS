@@ -26,6 +26,9 @@ export default function WebtoonBuilder() {
   const allImagesReady = scenes.length > 0 && scenes.every(s => !!s.imageDataUrl);
   const [selectedSceneIndex, setSelectedSceneIndex] = useState<number>(0);
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'system' | 'user' | 'assistant'; text: string }>>([]);
+  const [chatDraft, setChatDraft] = useState<string>("");
+  const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [chipActive, setChipActive] = useState<boolean>(false);
   const quickActions = [
     "More dramatic",
     "Add dialogue",
@@ -150,6 +153,17 @@ export default function WebtoonBuilder() {
     ]);
   }, [selectedSceneIndex]);
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('webtoonChatChipActive');
+      if (stored != null) setChipActive(stored === '1');
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.setItem('webtoonChatChipActive', chipActive ? '1' : '0'); } catch {}
+  }, [chipActive]);
+
   function isValidSceneDescription(text: string): { valid: boolean; reason?: string } {
     const t = (text || '').toLowerCase().trim();
     if (!t) return { valid: false, reason: 'empty' };
@@ -211,27 +225,22 @@ export default function WebtoonBuilder() {
   };
 
   const handleQuick = (q: string) => {
-    const input = document.getElementById('chat-input') as HTMLInputElement | null;
-    if (input) {
-      input.value = input.value ? `${input.value} ${q}` : q;
-      input.focus();
-    }
+    setChatDraft((prev) => (prev ? `${prev} ${q}` : q));
+    setTimeout(() => chatInputRef.current?.focus(), 0);
   };
 
   const handleSend = (e: any) => {
     e.preventDefault();
-    const form = e.currentTarget as HTMLFormElement;
-    const input = form.querySelector('#chat-input') as HTMLInputElement | null;
-    const value = input?.value?.trim();
+    const value = chatDraft.trim();
     if (!value) return;
     processUserText(value);
-    if (input) input.value = '';
+    setChatDraft('');
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
       <Header />
-      <main className="mx-auto max-w-6xl px-4 py-8 lg:pr-[380px]">
+      <main className="mx-auto max-w-6xl px-4 py-8 lg:pr-[460px]">
         <div className="flex items-center gap-3 mb-6">
           <Button
             variant="outline"
@@ -321,7 +330,7 @@ export default function WebtoonBuilder() {
               </div>
             ))}
             </div>
-            <aside className="hidden lg:block fixed top-[64px] right-0 h-[calc(100vh-64px)] w-[360px]">
+            <aside className="hidden lg:block fixed top-[64px] right-0 h-[calc(100vh-64px)] w-[420px]">
               <div className="h-full border border-white/10 bg-white/5 backdrop-blur-sm rounded-none flex flex-col">
                 <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
                   <div className="font-semibold">Scene Editor</div>
@@ -339,10 +348,30 @@ export default function WebtoonBuilder() {
                     </div>
                   ))}
                 </div>
-                <form onSubmit={handleSend} className="p-3 border-t border-white/10 flex gap-2">
-                  <input id="chat-input" name="chat" autoComplete="off" placeholder="Describe your change..." className="flex-1 bg-transparent border border-white/15 rounded-md px-3 py-2 text-sm outline-none focus:border-fuchsia-500/60" />
-                  <Button type="submit" className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white">Send</Button>
-                </form>
+                <div className="px-3 pt-3 border-t border-white/10">
+                  <div className="mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setChipActive((v) => !v)}
+                      className={`text-xs rounded-full px-3 py-1 ${chipActive ? 'bg-fuchsia-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                    >
+                      {chipActive ? 'Chip: Active' : 'Chip: Inactive'}
+                    </button>
+                  </div>
+                  <form onSubmit={handleSend} className="flex gap-2 items-start">
+                    <textarea
+                      id="chat-input"
+                      ref={chatInputRef}
+                      name="chat"
+                      rows={3}
+                      value={chatDraft}
+                      onChange={(e) => setChatDraft(e.target.value)}
+                      placeholder="Describe your change..."
+                      className="flex-1 bg-transparent border border-white/15 rounded-md px-3 py-2 text-sm outline-none focus:border-fuchsia-500/60 resize-none overflow-y-auto overflow-x-hidden min-h-[84px] max-h-[84px] whitespace-pre-wrap"
+                    />
+                    <Button type="submit" className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white">Send</Button>
+                  </form>
+                </div>
               </div>
             </aside>
           </div>
