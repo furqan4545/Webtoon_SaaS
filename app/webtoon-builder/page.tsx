@@ -155,9 +155,25 @@ export default function WebtoonBuilder() {
     if (smallTalk.some(p => t === p || t.startsWith(p))) return { valid: false, reason: 'smalltalk' };
     // If it's a question directly to assistant
     if (t.includes('?') && /\byou\b/.test(t)) return { valid: false, reason: 'question' };
+
+    // Special-case: background removal/segmentation/extraction or white background directives
+    const backgroundDirectivePatterns = [
+      /\b(remove|erase|delete|cut|clear|drop|strip|segment|mask|matte|clip) (the )?background\b/,
+      /\b(make|set|turn) (the )?background (to )?(white|blank|plain)\b/,
+      /\bbackground( is)? (all )?(white|blank|plain|solid white)\b/,
+      /\bno background\b/,
+      /\b(backgroundless|bg-less|bg less)\b/,
+      /\b(extract|isolate) (the )?(character|characters|subject)s?\b/,
+      /\b(subject only|characters? only)\b/,
+      /\btransparent background\b/,
+    ];
+    if (backgroundDirectivePatterns.some((re) => re.test(t))) {
+      return { valid: true };
+    }
     // Very short directives we still allow (quick actions like "close-up", "wider shot")
     const directional = [
-      'close-up', 'close up', 'wider shot', 'wide shot', 'brighter lighting', 'darker lighting', 'more romantic', 'more horror', 'more dramatic', 'add dialogue'
+      'close-up', 'close up', 'wider shot', 'wide shot', 'brighter lighting', 'darker lighting', 'more romantic', 'more horror', 'more dramatic', 'add dialogue',
+      'remove background', 'white background', 'make background white', 'no background', 'transparent background', 'segment background', 'extract characters', 'isolate character', 'characters only', 'subject only'
     ];
     if (directional.includes(t)) return { valid: true };
     // Basic heuristic: has at least a few words and at least one action/visual cue
