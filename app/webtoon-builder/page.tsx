@@ -27,6 +27,7 @@ export default function WebtoonBuilder() {
   const [selectedSceneIndex, setSelectedSceneIndex] = useState<number>(0);
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'system' | 'user' | 'assistant'; text: string }>>([]);
   const [chatDraft, setChatDraft] = useState<string>("");
+  const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   type ActiveBadge = 'none' | 'remove' | 'edit';
   const [activeBadge, setActiveBadge] = useState<ActiveBadge>('none');
@@ -462,7 +463,7 @@ export default function WebtoonBuilder() {
           </div>
         )}
         {!loading && (
-          <div className="flex justify-center mt-8">
+          <div className="flex justify-center gap-3 mt-8">
             <Button
               onClick={async () => {
                 if (!allImagesReady) return;
@@ -486,9 +487,81 @@ export default function WebtoonBuilder() {
                 }, 300);
               }}
               disabled={!allImagesReady}
-              className="px-8 bg-white text-black hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-8 bg-white text.black hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Preview Webtoon
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!allImagesReady || isPublishing) return;
+                setIsPublishing(true);
+                try {
+                  const dataUrls = scenes.map(s => s.imageDataUrl).filter(Boolean) as string[];
+
+                  // Load all images
+                  const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = src;
+                  });
+                  const images = await Promise.all(dataUrls.map(loadImage));
+
+                  // Layout params (match preview vibe): 24px vertical gap and 24px outer padding
+                  const panelGap = 24; // px
+                  const edgePadding = 24; // px
+
+                  const canvasWidth = Math.max(...images.map(img => img.naturalWidth || img.width));
+                  const totalHeight = images.reduce((sum, img, idx) => sum + (img.naturalHeight || img.height) + (idx > 0 ? panelGap : 0), 0) + edgePadding * 2;
+
+                  const canvas = document.createElement('canvas');
+                  canvas.width = canvasWidth + edgePadding * 2; // include side padding
+                  canvas.height = totalHeight;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) throw new Error('Failed to get canvas context');
+
+                  // White background
+                  ctx.fillStyle = '#ffffff';
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                  // Draw each panel centered horizontally
+                  let y = edgePadding;
+                  for (const img of images) {
+                    const w = img.naturalWidth || img.width;
+                    const h = img.naturalHeight || img.height;
+                    const x = Math.floor((canvas.width - w) / 2);
+                    ctx.drawImage(img, x, y, w, h);
+                    y += h + panelGap;
+                  }
+
+                  // Export PNG and download
+                  const blob: Blob | null = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                  if (!blob) throw new Error('Failed to export image');
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'webtoon.png';
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
+                } catch (e) {
+                  console.error('Publish webtoon failed', e);
+                } finally {
+                  setIsPublishing(false);
+                }
+              }}
+              disabled={!allImagesReady || isPublishing}
+              className="px-8 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isPublishing ? (
+                <>
+                  <div className="h-4 w-4 mr-2 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                'Publish Webtoon'
+              )}
             </Button>
           </div>
         )}
