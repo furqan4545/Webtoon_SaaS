@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Wand2 } from "lucide-react";
+import { Wand2, ChevronLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 import Header from "../dashboard/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -15,6 +16,7 @@ interface SceneItem {
 }
 
 export default function WebtoonBuilder() {
+  const router = useRouter();
   const [scenes, setScenes] = useState<SceneItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -227,7 +229,16 @@ export default function WebtoonBuilder() {
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
       <Header />
       <main className="mx-auto max-w-6xl px-4 py-8 lg:pr-[380px]">
-        <h1 className="text-3xl font-bold mb-6">Create Your Webtoon</h1>
+        <div className="flex items-center gap-3 mb-6">
+          <Button
+            variant="outline"
+            className="border-white/20 text-white hover:bg-white/10"
+            onClick={() => router.push('/generate-characters')}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" /> Back
+          </Button>
+          <h1 className="text-3xl font-bold">Create Your Webtoon</h1>
+        </div>
         {loading && (
           <div className="text-white/70">Generating scenes...</div>
         )}
