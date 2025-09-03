@@ -151,6 +151,11 @@ export default function WebtoonBuilder() {
       { role: 'system', text: `You are currently editing Scene ${selectedSceneIndex + 1}` },
       { role: 'assistant', text: `Scene description: ${scenes[selectedSceneIndex].description}` },
     ]);
+    // Auto-disable background chip if no image for this scene
+    if (!scenes[selectedSceneIndex]?.imageDataUrl) {
+      setChipActive(false);
+      try { localStorage.setItem('webtoonChatChipActive', '0'); } catch {}
+    }
   }, [selectedSceneIndex]);
 
   useEffect(() => {
@@ -212,6 +217,13 @@ export default function WebtoonBuilder() {
   }
 
   const processUserText = async (text: string) => {
+    // If remove-background chip is active, run that flow instead of text validation
+    if (chipActive) {
+      setChatMessages((prev) => [...prev, { role: 'user', text }]);
+      setChatMessages((prev) => [...prev, { role: 'assistant', text: 'Removing background from the current scene...' }]);
+      await handleRemoveBackground(selectedSceneIndex);
+      return;
+    }
     const { valid } = isValidSceneDescription(text);
     setChatMessages((prev) => [...prev, { role: 'user', text }]);
     if (!valid) {
@@ -222,6 +234,25 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === selectedSceneIndex ? { ...s, description: text } : s));
     setChatMessages((prev) => [...prev, { role: 'assistant', text: 'Updated the scene description. Regenerating the image...' }]);
     await handleGenerateScene(selectedSceneIndex, text);
+  };
+
+  const handleRemoveBackground = async (index: number) => {
+    const scene = scenes[index];
+    if (!scene?.imageDataUrl) return;
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
+    try {
+      const res = await fetch('/api/remove-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUrl: scene.imageDataUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to remove background');
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
+    } catch (e) {
+      console.error('remove background error', e);
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
+    }
   };
 
   const handleQuick = (q: string) => {
@@ -352,10 +383,14 @@ export default function WebtoonBuilder() {
                   <div className="mb-2">
                     <button
                       type="button"
-                      onClick={() => setChipActive((v) => !v)}
-                      className={`text-xs rounded-full px-3 py-1 ${chipActive ? 'bg-fuchsia-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                      onClick={() => {
+                        if (!scenes[selectedSceneIndex]?.imageDataUrl) return;
+                        setChipActive((v) => !v);
+                      }}
+                      disabled={!scenes[selectedSceneIndex]?.imageDataUrl}
+                      className={`text-xs rounded-full px-3 py-1 ${!scenes[selectedSceneIndex]?.imageDataUrl ? 'bg-white/5 text-white/40 cursor-not-allowed' : chipActive ? 'bg-fuchsia-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
                     >
-                      {chipActive ? 'Chip: Active' : 'Chip: Inactive'}
+                      {chipActive ? 'Remove Background: On' : 'Remove Background'}
                     </button>
                   </div>
                   <form onSubmit={handleSend} className="flex items-start">
@@ -373,7 +408,7 @@ export default function WebtoonBuilder() {
                       <button
                         type="submit"
                         aria-label="Send"
-                        className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white flex items-center justify-center hover:opacity-90"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white flex items-center justify-center hover:opacity-90"
                       >
                         <Send className="h-4 w-4" />
                       </button>
