@@ -28,7 +28,8 @@ export default function WebtoonBuilder() {
   const [chatMessages, setChatMessages] = useState<Array<{ role: 'system' | 'user' | 'assistant'; text: string }>>([]);
   const [chatDraft, setChatDraft] = useState<string>("");
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [chipActive, setChipActive] = useState<boolean>(false);
+  type ActiveBadge = 'none' | 'remove' | 'edit';
+  const [activeBadge, setActiveBadge] = useState<ActiveBadge>('none');
   const quickActions = [
     "More dramatic",
     "Add dialogue",
@@ -151,23 +152,23 @@ export default function WebtoonBuilder() {
       { role: 'system', text: `You are currently editing Scene ${selectedSceneIndex + 1}` },
       { role: 'assistant', text: `Scene description: ${scenes[selectedSceneIndex].description}` },
     ]);
-    // Auto-disable background chip if no image for this scene
+    // Auto-disable badges if no image for this scene
     if (!scenes[selectedSceneIndex]?.imageDataUrl) {
-      setChipActive(false);
-      try { localStorage.setItem('webtoonChatChipActive', '0'); } catch {}
+      setActiveBadge('none');
+      try { localStorage.setItem('webtoonChatActiveBadge', 'none'); } catch {}
     }
   }, [selectedSceneIndex]);
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('webtoonChatChipActive');
-      if (stored != null) setChipActive(stored === '1');
+      const badge = localStorage.getItem('webtoonChatActiveBadge');
+      if (badge === 'remove' || badge === 'edit' || badge === 'none') setActiveBadge(badge as ActiveBadge);
     } catch {}
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem('webtoonChatChipActive', chipActive ? '1' : '0'); } catch {}
-  }, [chipActive]);
+    try { localStorage.setItem('webtoonChatActiveBadge', activeBadge); } catch {}
+  }, [activeBadge]);
 
   function isValidSceneDescription(text: string): { valid: boolean; reason?: string } {
     const t = (text || '').toLowerCase().trim();
@@ -217,11 +218,16 @@ export default function WebtoonBuilder() {
   }
 
   const processUserText = async (text: string) => {
-    // If remove-background chip is active, run that flow instead of text validation
-    if (chipActive) {
+    // Badge modes bypass validation
+    if (activeBadge === 'remove') {
       setChatMessages((prev) => [...prev, { role: 'user', text }]);
       setChatMessages((prev) => [...prev, { role: 'assistant', text: 'Removing background from the current scene...' }]);
       await handleRemoveBackground(selectedSceneIndex);
+      return;
+    } else if (activeBadge === 'edit') {
+      setChatMessages((prev) => [...prev, { role: 'user', text }]);
+      setChatMessages((prev) => [...prev, { role: 'assistant', text: 'Applying your edit to the current scene...' }]);
+      await handleEditScene(selectedSceneIndex, text);
       return;
     }
     const { valid } = isValidSceneDescription(text);
@@ -251,6 +257,25 @@ export default function WebtoonBuilder() {
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
     } catch (e) {
       console.error('remove background error', e);
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
+    }
+  };
+
+  const handleEditScene = async (index: number, instruction: string) => {
+    const scene = scenes[index];
+    if (!scene?.imageDataUrl) return;
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
+    try {
+      const res = await fetch('/api/edit-scene-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUrl: scene.imageDataUrl, instruction }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to edit scene image');
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
+    } catch (e) {
+      console.error('edit scene error', e);
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
     }
   };
@@ -380,17 +405,28 @@ export default function WebtoonBuilder() {
                   ))}
                 </div>
                 <div className="px-3 pt-3 pb-3 border-t border-white/10">
-                  <div className="mb-2">
+                  <div className="mb-2 flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         if (!scenes[selectedSceneIndex]?.imageDataUrl) return;
-                        setChipActive((v) => !v);
+                        setActiveBadge((b) => (b === 'remove' ? 'none' : 'remove'));
                       }}
                       disabled={!scenes[selectedSceneIndex]?.imageDataUrl}
-                      className={`text-xs rounded-full px-3 py-1 ${!scenes[selectedSceneIndex]?.imageDataUrl ? 'bg-white/5 text-white/40 cursor-not-allowed' : chipActive ? 'bg-fuchsia-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                      className={`text-xs rounded-full px-3 py-1 ${!scenes[selectedSceneIndex]?.imageDataUrl ? 'bg-white/5 text-white/40 cursor-not-allowed' : activeBadge === 'remove' ? 'bg-fuchsia-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
                     >
-                      {chipActive ? 'Remove Background: On' : 'Remove Background'}
+                      {activeBadge === 'remove' ? 'Remove Background: On' : 'Remove Background'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!scenes[selectedSceneIndex]?.imageDataUrl) return;
+                        setActiveBadge((b) => (b === 'edit' ? 'none' : 'edit'));
+                      }}
+                      disabled={!scenes[selectedSceneIndex]?.imageDataUrl}
+                      className={`text-xs rounded-full px-3 py-1 ${!scenes[selectedSceneIndex]?.imageDataUrl ? 'bg-white/5 text-white/40 cursor-not-allowed' : activeBadge === 'edit' ? 'bg-fuchsia-600 text-white' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                    >
+                      {activeBadge === 'edit' ? 'Edit: On' : 'Edit'}
                     </button>
                   </div>
                   <form onSubmit={handleSend} className="flex items-start">
