@@ -60,6 +60,7 @@ export default function WebtoonBuilder() {
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to generate scene image');
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
+      setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
     } catch (e) {
       console.error(e);
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
@@ -255,6 +256,7 @@ export default function WebtoonBuilder() {
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to remove background');
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
+      setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
     } catch (e) {
       console.error('remove background error', e);
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
@@ -274,6 +276,7 @@ export default function WebtoonBuilder() {
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to edit scene image');
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
+      setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
     } catch (e) {
       console.error('edit scene error', e);
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
