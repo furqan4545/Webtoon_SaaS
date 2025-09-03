@@ -42,13 +42,15 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const characters = JSON.parse(sessionStorage.getItem('characters') || '[]');
+      const artStyle = sessionStorage.getItem('artStyle') || undefined;
       const res = await fetch('/api/generate-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sceneDescription: overrideDescription ?? scenes[index].description,
           storyText: scenes[index].storyText,
-          characterImages: characters.map((c: any, idx: number) => ({ name: c.name || `Character ${idx+1}`, dataUrl: c.imageDataUrl }))
+          characterImages: characters.map((c: any, idx: number) => ({ name: c.name || `Character ${idx+1}`, dataUrl: c.imageDataUrl })),
+          artStyle,
         })
       });
       const data = await res.json();

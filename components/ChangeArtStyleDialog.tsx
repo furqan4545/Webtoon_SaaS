@@ -32,6 +32,7 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
   const [generating, setGenerating] = useState(false);
   const [previewImages, setPreviewImages] = useState<Record<string, string | null | undefined>>({});
   const [characterList, setCharacterList] = useState<Array<{ id: string; name: string; description: string }>>([]);
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setText(initialStyle || presetList[0]);
@@ -111,14 +112,14 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
       <DialogTrigger asChild>
         <Button className={buttonClassName || "bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white"}>Change Art Style</Button>
       </DialogTrigger>
-      <DialogContent className="w-[min(92vw,820px)] max-w-[820px] rounded-xl border-white/15 bg-[#0f0f16] p-6 md:p-7">
+      <DialogContent className="w-[min(92vw,820px)] max-w-[820px] h-[min(90vh,700px)] rounded-xl border-white/15 bg-[#0f0f16] p-6 md:p-7 flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl md:text-2xl">Edit Art Style</DialogTitle>
           <DialogDescription>
             Changes will apply to newly generated panels. Existing panels will keep their current style.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 mt-3">
+        <div className="space-y-4 mt-3 flex-1 overflow-y-auto pr-1">
           <div className="text-sm font-medium">Your Custom Art Style</div>
           <Textarea
             value={text}
@@ -172,7 +173,7 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
                           {generating && img === undefined ? (
                             <div className="h-6 w-6 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                           ) : img ? (
-                            <img src={img} alt={ch.name} className="w-full h-full object-cover" />
+                            <img onClick={() => setZoomUrl(img)} src={img} alt={ch.name} className="w-full h-full object-cover cursor-zoom-in" />
                           ) : (
                             <div className="text-xs text-white/50">Failed</div>
                           )}
@@ -190,6 +191,14 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
             </div>
           ) : null}
         </div>
+        {zoomUrl && (
+          <div
+            className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center"
+            onClick={() => setZoomUrl(null)}
+          >
+            <img src={zoomUrl} alt="Preview" className="max-w-[92vw] max-h-[92vh] rounded-md border border-white/20" />
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
