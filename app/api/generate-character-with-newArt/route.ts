@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     const styleText = sanitize(artStyle || "webtoon, clean outlines, expressive, flat cel shading");
 
     const prompt = sanitize(
-      `${systemInstruction}\n\nCharacter name: ${name || "Unnamed"}.\nCharacter description: ${description}.\nDesired style: ${styleText}.`
+      `${systemInstruction}\n\nCharacter name: ${name || "Unnamed"}.\n.\nDesired style: ${styleText}.`
     );
 
     const ai = new GoogleGenAI({ apiKey });
