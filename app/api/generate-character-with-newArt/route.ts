@@ -30,13 +30,13 @@ export async function POST(request: NextRequest) {
     }
 
     const systemInstruction = sanitize(
-      `You are generating a consistent WEBTOON character model sheet for production. Render a single, front-facing character with expressive face, readable silhouette, studio sheet white background.`
+      `You are generating a consistent character model sheet for production. Render a single, front-facing character with expressive face, studio sheet white background.`
     );
 
     const styleText = sanitize(artStyle || "webtoon, clean outlines, expressive, flat cel shading");
 
     const prompt = sanitize(
-      `${systemInstruction}\n\nCharacter name: ${name || "Unnamed"}.\n.\nDesired style: ${styleText}.`
+      `${systemInstruction}\n\nCharacter name: ${name || "Unnamed"}.\nCharacter description: ${description}.\nDesired style: ${styleText}.`
     );
 
     const ai = new GoogleGenAI({ apiKey });
