@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const styleText = sanitize(artStyle || 'clean webtoon line art, flat cel shading, high mobile readability');
     const prompt = sanitize(
-      `You are generating a single WEBTOON panel for a vertical-scroll story.\nKeep the SAME PERSON as in provided references. Do NOT change hair length/color or fringe shape. Keep the same eye spacing, brow thickness, jawline, and any unique marks.\nStyle: ${styleText}. DO NOT INCLUDE TEXT.\n\nScene Description: ${sceneDescription}`
+      `You are generating a single WEBTOON panel for a vertical-scroll story.\nKeep the SAME PERSON as in provided references. Do NOT change hair length/color or fringe shape. Keep the same eye spacing, brow thickness, jawline, and any unique marks.\nStyle: ${styleText}. DO NOT INCLUDE TEXT.\n\nScene Description: ${sceneDescription}\nStory Text: ${storyText}`
     );
 
     // parts: text + inline images for each character reference
