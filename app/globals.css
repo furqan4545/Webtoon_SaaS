@@ -120,3 +120,37 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Animated gradient utilities for chat busy state */
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.shimmer-line {
+  height: 1px;
+  background: rgba(255,255,255,0.08);
+}
+
+.shimmer-line.active {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #a855f7, #22d3ee, #6366f1, #a855f7);
+  background-size: 200% 100%;
+  animation: gradientShift 2s linear infinite;
+  box-shadow: 0 0 16px rgba(168,85,247,0.45);
+}
+
+.animated-border {
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.animated-border.active {
+  border-width: 2px;
+  background: linear-gradient(#0f0f1a, #0f0f1a) padding-box,
+              linear-gradient(90deg, #a855f7, #22d3ee, #6366f1, #a855f7) border-box;
+  background-size: 200% 100%;
+  animation: gradientShift 2s linear infinite;
+  box-shadow: 0 0 20px rgba(168,85,247,0.35);
+}

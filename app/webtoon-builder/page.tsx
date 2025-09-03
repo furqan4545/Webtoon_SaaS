@@ -397,6 +397,7 @@ export default function WebtoonBuilder() {
                     <button key={q} onClick={() => handleQuick(q)} className="inline-block text-xs bg-white/10 hover:bg-white/20 rounded-full px-3 py-1 mr-2">{q}</button>
                   ))}
                 </div>
+                <div className="shimmer-line ${scenes[selectedSceneIndex]?.isGenerating ? 'active' : ''}"></div>
                 <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
                   {chatMessages.map((m, idx) => (
                     <div key={idx} className={m.role === 'user' ? 'text-right' : 'text-left'}>
@@ -404,7 +405,7 @@ export default function WebtoonBuilder() {
                     </div>
                   ))}
                 </div>
-                <div className="px-3 pt-3 pb-3 border-t border-white/10">
+                <div className={`px-3 pt-3 pb-3 border-t border-white/10`}>
                   <div className="mb-2 flex items-center gap-2">
                     <button
                       type="button"
@@ -439,12 +440,14 @@ export default function WebtoonBuilder() {
                         value={chatDraft}
                         onChange={(e) => setChatDraft(e.target.value)}
                         placeholder="Describe your change..."
-                        className="w-full bg-transparent border border-white/15 rounded-md pl-3 pr-12 py-2 text-sm outline-none focus:border-fuchsia-500/60 resize-none overflow-y-auto overflow-x-hidden min-h-[84px] max-h-[84px] whitespace-pre-wrap"
+                        disabled={!!scenes[selectedSceneIndex]?.isGenerating}
+                        className={`w-full bg-transparent rounded-md pl-3 pr-12 py-2 text-sm outline-none resize-none overflow-y-auto overflow-x-hidden min-h-[84px] max-h-[84px] whitespace-pre-wrap animated-border ${scenes[selectedSceneIndex]?.isGenerating ? 'active' : ''}`}
                       />
                       <button
                         type="submit"
                         aria-label="Send"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white flex items-center justify-center hover:opacity-90"
+                        disabled={!!scenes[selectedSceneIndex]?.isGenerating}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white flex items-center justify-center ${scenes[selectedSceneIndex]?.isGenerating ? 'opacity-60 cursor-not-allowed' : 'hover:opacity-90'}`}
                       >
                         <Send className="h-4 w-4" />
                       </button>
