@@ -30,7 +30,7 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
   const [selectedPreset, setSelectedPreset] = useState<string>(initialStyle || presetList[0]);
   const [dirty, setDirty] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [previewImages, setPreviewImages] = useState<Record<string, string | null>>({});
+  const [previewImages, setPreviewImages] = useState<Record<string, string | null | undefined>>({});
   const [characterList, setCharacterList] = useState<Array<{ id: string; name: string; description: string }>>([]);
 
   useEffect(() => {
@@ -73,25 +73,25 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
     const style = text.trim();
     if (!style || generating) return;
     setGenerating(true);
-    const nextPreview: Record<string, string | null> = {};
-    setPreviewImages({});
-    await Promise.all(
-      characterList.map(async (ch) => {
-        try {
-          const res = await fetch('/api/generate-character-with-newArt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: ch.name, description: ch.description, artStyle: style }),
-          });
-          const data = await res.json();
-          if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed');
-          nextPreview[ch.id] = data.image as string;
-        } catch (e) {
-          nextPreview[ch.id] = null;
-        }
-      })
-    );
-    setPreviewImages(nextPreview);
+    // Initialize all slots as undefined (show loader)
+    const initial: Record<string, string | null | undefined> = {};
+    for (const ch of characterList) initial[ch.id] = undefined;
+    setPreviewImages(initial);
+    // Run sequentially: one character at a time
+    for (const ch of characterList) {
+      try {
+        const res = await fetch('/api/generate-character-with-newArt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: ch.name, description: ch.description, artStyle: style }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed');
+        setPreviewImages((prev) => ({ ...prev, [ch.id]: data.image as string }));
+      } catch (e) {
+        setPreviewImages((prev) => ({ ...prev, [ch.id]: null }));
+      }
+    }
     setGenerating(false);
   };
 
