@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Wand2, ChevronLeft } from "lucide-react";
+import { Wand2, ChevronLeft, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ChangeArtStyleDialog from "@/components/ChangeArtStyleDialog";
 import Header from "../dashboard/Header";
@@ -348,7 +348,7 @@ export default function WebtoonBuilder() {
                     </div>
                   ))}
                 </div>
-                <div className="px-3 pt-3 border-t border-white/10">
+                <div className="px-3 pt-3 pb-3 border-t border-white/10">
                   <div className="mb-2">
                     <button
                       type="button"
@@ -358,18 +358,26 @@ export default function WebtoonBuilder() {
                       {chipActive ? 'Chip: Active' : 'Chip: Inactive'}
                     </button>
                   </div>
-                  <form onSubmit={handleSend} className="flex gap-2 items-start">
-                    <textarea
-                      id="chat-input"
-                      ref={chatInputRef}
-                      name="chat"
-                      rows={3}
-                      value={chatDraft}
-                      onChange={(e) => setChatDraft(e.target.value)}
-                      placeholder="Describe your change..."
-                      className="flex-1 bg-transparent border border-white/15 rounded-md px-3 py-2 text-sm outline-none focus:border-fuchsia-500/60 resize-none overflow-y-auto overflow-x-hidden min-h-[84px] max-h-[84px] whitespace-pre-wrap"
-                    />
-                    <Button type="submit" className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white">Send</Button>
+                  <form onSubmit={handleSend} className="flex items-start">
+                    <div className="relative flex-1">
+                      <textarea
+                        id="chat-input"
+                        ref={chatInputRef}
+                        name="chat"
+                        rows={3}
+                        value={chatDraft}
+                        onChange={(e) => setChatDraft(e.target.value)}
+                        placeholder="Describe your change..."
+                        className="w-full bg-transparent border border-white/15 rounded-md pl-3 pr-12 py-2 text-sm outline-none focus:border-fuchsia-500/60 resize-none overflow-y-auto overflow-x-hidden min-h-[84px] max-h-[84px] whitespace-pre-wrap"
+                      />
+                      <button
+                        type="submit"
+                        aria-label="Send"
+                        className="absolute bottom-2 right-2 h-8 w-8 rounded-full bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white flex items-center justify-center hover:opacity-90"
+                      >
+                        <Send className="h-4 w-4" />
+                      </button>
+                    </div>
                   </form>
                 </div>
               </div>
