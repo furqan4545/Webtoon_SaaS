@@ -44,8 +44,7 @@ export default function ChooseArtStyle() {
     (async () => {
       try {
         const projectId = sessionStorage.getItem('currentProjectId');
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user || !projectId) return;
+        if (!projectId) return;
         const res = await fetch(`/api/art-style?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
         const json = await res.json();
         const pre = (json?.artStyle?.description as string | undefined) || '';
@@ -69,11 +68,15 @@ export default function ChooseArtStyle() {
     // Persist to new art_styles table and project
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user && projectId) {
-        // Update existing art style row (no upsert)
-        const res = await fetch('/api/art-style', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, description: text }) });
-        // If not found, optionally create once here, but per request we won't upsert.
+      if (projectId) {
+        // Check if row exists
+        const check = await fetch(`/api/art-style?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+        const j = await check.json();
+        if (j?.artStyle) {
+          await fetch('/api/art-style', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, description: text }) });
+        } else {
+          await fetch('/api/art-style', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, description: text }) });
+        }
         // Mirror to projects.art_style for convenience
         await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, art_style: text }) });
         // If characters already exist for this project, skip generation and go straight to editor
