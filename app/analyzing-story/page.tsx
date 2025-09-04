@@ -51,8 +51,35 @@ export default function AnalyzingStory() {
         }
 
         if (data.success && data.characters) {
-          // Store the generated characters
-          sessionStorage.setItem('characters', JSON.stringify(data.characters));
+          const projectId = sessionStorage.getItem('currentProjectId');
+          if (!projectId) {
+            throw new Error('No project selected');
+          }
+          // Load art style from DB for this project (prefer art_styles table)
+          let artStyle: string | undefined = undefined;
+          try {
+            const resStyle = await fetch(`/api/art-style?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+            const js = await resStyle.json();
+            artStyle = (js?.artStyle?.description as string | undefined) || undefined;
+            if (!artStyle) {
+              const r2 = await fetch(`/api/projects?id=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+              const j2 = await r2.json();
+              artStyle = (j2?.project?.art_style as string | undefined) || undefined;
+            }
+          } catch {}
+          // Persist characters to DB (create-only)
+          try {
+            const list = Array.isArray(data.characters) ? data.characters : [];
+            await Promise.all(list.map((c: any, idx: number) => {
+              const name = (c?.name || c?.Name || `Character ${idx + 1}`) as string;
+              const description = (c?.description || c?.Description || '') as string;
+              return fetch('/api/characters', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId, name, description, artStyle })
+              }).catch(() => {});
+            }));
+          } catch {}
           // Navigate to character generation page
           router.push("/generate-characters");
         } else {
