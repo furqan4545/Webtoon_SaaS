@@ -71,8 +71,8 @@ export default async function Dashboard() {
                 <li>Guided story structure</li>
               </ul>
               <div className="mt-auto w-full">
-                <Button className="w-full h-12 bg-gradient-to-r from-sky-400 to-indigo-400 text-white shadow-[0_8px_30px_rgba(56,189,248,0.35)] hover:opacity-95">
-                  Create New Story →
+                <Button asChild className="w-full h-12 bg-gradient-to-r from-sky-400 to-indigo-400 text-white shadow-[0_8px_30px_rgba(56,189,248,0.35)] hover:opacity-95">
+                  <Link href="/create_my_story">Create New Story →</Link>
                 </Button>
               </div>
             </Card>
