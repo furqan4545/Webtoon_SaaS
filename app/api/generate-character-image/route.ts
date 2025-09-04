@@ -98,54 +98,49 @@ export async function POST(request: NextRequest) {
     }
 
     const dataUrl = `data:${mimeType};base64,${base64}`;
-    // Save to Storage and characters table
-    const buffer = Buffer.from(base64, 'base64');
-    const path = `users/${user.id}/projects/${projectId || 'default'}/characters/${(name || 'character').replace(/\s+/g, '_')}_${Date.now()}.png`;
-    const { data: uploaded, error: upErr } = await supabase.storage.from('webtoon').upload(path, buffer, {
-      contentType: mimeType,
-      upsert: false,
-    });
-    if (upErr) {
-      // If a file with the same name exists (unlikely due to timestamp), fall back to a unique name
-      console.error('storage upload error', upErr);
-      const altPath = `users/${user.id}/projects/${projectId || 'default'}/characters/${(name || 'character').replace(/\s+/g, '_')}_${Date.now()}_${Math.floor(Math.random()*1000)}.png`;
-      const retry = await supabase.storage.from('webtoon').upload(altPath, buffer, { contentType: mimeType, upsert: false });
-      if (!retry.error) {
-        return NextResponse.json({ success: true, image: dataUrl, path: retry.data?.path || altPath });
-      }
-    }
     if (projectId) {
-      const now = new Date().toISOString();
-      const newPath = uploaded?.path || path;
-      // Update only if exists; remove old image if replacing. Do NOT insert new rows here.
+      // Fetch target character FIRST to compute a stable path and avoid orphan files
       const { data: existing } = await supabase
         .from('characters')
-        .select('id,image_path')
+        .select('id,image_path,name')
         .eq('project_id', projectId)
         .eq('user_id', user.id)
         .eq('name', name || 'Character')
         .single();
-      if (existing) {
-        if (existing.image_path && existing.image_path !== newPath) {
-          try { await supabase.storage.from('webtoon').remove([existing.image_path]); } catch {}
-        }
-        await supabase.from('characters').update({
-          description,
-          art_style: artStyle || null,
-          image_path: newPath,
-          updated_at: now,
-        }).eq('id', existing.id);
-      } else {
-        return NextResponse.json({ error: 'Character not found to update image' }, { status: 404 });
+      if (!existing) return NextResponse.json({ error: 'Character not found to update image' }, { status: 404 });
+
+      const buffer = Buffer.from(base64, 'base64');
+      // Use stable path per character; overwrite the same object each time
+      const safeName = (name || 'character').replace(/\s+/g, '_');
+      const stablePath = existing.image_path || `users/${user.id}/projects/${projectId}/characters/${safeName}_${existing.id}.png`;
+      const upload = await supabase.storage.from('webtoon').upload(stablePath, buffer, { contentType: mimeType, upsert: true });
+      if (upload.error) {
+        return NextResponse.json({ error: upload.error.message || 'Upload failed' }, { status: 500 });
       }
+
+      const now = new Date().toISOString();
+      await supabase.from('characters').update({
+        description,
+        art_style: artStyle || null,
+        image_path: stablePath,
+        updated_at: now,
+      }).eq('id', existing.id);
       await supabase.from('projects').update({ updated_at: now }).eq('id', projectId).eq('user_id', user.id);
+      try {
+        const reqUrl = new URL(request.url);
+        const base = `${reqUrl.protocol}//${reqUrl.host}`;
+        await fetch(`${base}/api/usage`, { method: 'POST' });
+      } catch {}
+      return NextResponse.json({ success: true, image: dataUrl, path: stablePath });
     }
+
+    // No projectId provided: just return image data without storage persistence
     try {
       const reqUrl = new URL(request.url);
       const base = `${reqUrl.protocol}//${reqUrl.host}`;
       await fetch(`${base}/api/usage`, { method: 'POST' });
     } catch {}
-    return NextResponse.json({ success: true, image: dataUrl, path });
+    return NextResponse.json({ success: true, image: dataUrl });
   } catch (error: unknown) {
     const err = error as any;
     return NextResponse.json(
