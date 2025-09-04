@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import ChangeArtStyleDialog from "@/components/ChangeArtStyleDialog";
 import Header from "../dashboard/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
 
 interface SceneItem {
   id: string;
@@ -31,6 +32,8 @@ export default function WebtoonBuilder() {
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   type ActiveBadge = 'none' | 'remove' | 'edit';
   const [activeBadge, setActiveBadge] = useState<ActiveBadge>('none');
+  const supabase = createBrowserSupabase();
+  const [artStyle, setArtStyle] = useState<string>("");
   const quickActions = [
     "More dramatic",
     "Add dialogue",
@@ -46,16 +49,36 @@ export default function WebtoonBuilder() {
   const handleGenerateScene = async (index: number, overrideDescription?: string) => {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
-      const characters = JSON.parse(sessionStorage.getItem('characters') || '[]');
-      const artStyle = sessionStorage.getItem('artStyle') || undefined;
+      const projectId = sessionStorage.getItem('currentProjectId');
+      const characterImages: Array<{ name: string; dataUrl: string }> = [];
+      if (projectId) {
+        const r = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+        const j = await r.json();
+        const list = Array.isArray(j.characters) ? j.characters : [];
+        for (let i = 0; i < list.length; i++) {
+          const c = list[i];
+          if (!c?.image_path) continue;
+          const signed = await supabase.storage.from('webtoon').createSignedUrl(c.image_path, 60 * 30);
+          const url = signed.data?.signedUrl;
+          if (!url) continue;
+          const resp = await fetch(url);
+          const blob = await resp.blob();
+          const b64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.readAsDataURL(blob);
+          });
+          characterImages.push({ name: c.name || `Character ${i+1}`, dataUrl: b64 });
+        }
+      }
       const res = await fetch('/api/generate-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sceneDescription: overrideDescription ?? scenes[index].description,
           storyText: scenes[index].storyText,
-          characterImages: characters.map((c: any, idx: number) => ({ name: c.name || `Character ${idx+1}`, dataUrl: c.imageDataUrl })),
-          artStyle,
+          characterImages,
+          artStyle: artStyle || undefined,
         })
       });
       const data = await res.json();
@@ -117,6 +140,14 @@ export default function WebtoonBuilder() {
           return;
         }
 
+        // Load art style (optional)
+        try {
+          const as = await fetch(`/api/art-style?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+          const js = await as.json();
+          const pre = (js?.artStyle?.description as string | undefined) || '';
+          if (pre) setArtStyle(pre);
+        } catch {}
+
         // Load story strictly from DB
         let story: string | undefined;
         try {
@@ -128,33 +159,54 @@ export default function WebtoonBuilder() {
           }
         } catch {}
 
-        if (!story) {
-          setError('No story found.');
-          setLoading(false);
-          return;
-        }
-        const res = await fetch('/api/generate-scenes', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ story }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data?.success) {
-          throw new Error(data?.error || 'Failed to generate scenes');
-        }
-        const scenesObj = data.scenes || {};
-        const items: SceneItem[] = Object.keys(scenesObj).map((key, idx) => ({
-          id: key,
-          storyText: scenesObj[key]?.Story_Text || '',
-          description: scenesObj[key]?.Scene_Description || '',
-        }));
-        setScenes(items);
-        if (items[0]) {
+        // Check for existing generated scenes in DB first
+        let existingScenes: any[] = [];
+        try {
+          const r = await fetch(`/api/generated-scenes?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+          const j = await r.json();
+          existingScenes = Array.isArray(j.scenes) ? j.scenes : [];
+        } catch {}
+
+        if (existingScenes.length > 0) {
+          const items: SceneItem[] = existingScenes.map((s: any) => ({ id: `scene_${s.scene_no}`, storyText: s.story_text || '', description: s.scene_description || '' }));
+          setScenes(items);
           setSelectedSceneIndex(0);
           setChatMessages([
             { role: 'system', text: 'You are currently editing Scene 1' },
-            { role: 'assistant', text: `Scene description: ${items[0].description}` },
+            { role: 'assistant', text: `Scene description: ${items[0]?.description || ''}` },
           ]);
+        } else {
+          if (!story) {
+            setError('No story found.');
+            setLoading(false);
+            return;
+          }
+          const res = await fetch('/api/generate-scenes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ story }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data?.success) {
+            throw new Error(data?.error || 'Failed to generate scenes');
+          }
+          const scenesObj = data.scenes || {};
+          const items: SceneItem[] = Object.keys(scenesObj).map((key, idx) => ({
+            id: key,
+            storyText: scenesObj[key]?.Story_Text || '',
+            description: scenesObj[key]?.Scene_Description || '',
+          }));
+          setScenes(items);
+          setSelectedSceneIndex(0);
+          setChatMessages([
+            { role: 'system', text: 'You are currently editing Scene 1' },
+            { role: 'assistant', text: `Scene description: ${items[0]?.description || ''}` },
+          ]);
+          // Persist to DB
+          try {
+            const payload = items.map((s, i) => ({ scene_no: i + 1, story_text: s.storyText, scene_description: s.description }));
+            await fetch('/api/generated-scenes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, scenes: payload }) });
+          } catch {}
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Unknown error');
@@ -174,20 +226,9 @@ export default function WebtoonBuilder() {
     // Auto-disable badges if no image for this scene
     if (!scenes[selectedSceneIndex]?.imageDataUrl) {
       setActiveBadge('none');
-      try { localStorage.setItem('webtoonChatActiveBadge', 'none'); } catch {}
     }
   }, [selectedSceneIndex]);
-
-  useEffect(() => {
-    try {
-      const badge = localStorage.getItem('webtoonChatActiveBadge');
-      if (badge === 'remove' || badge === 'edit' || badge === 'none') setActiveBadge(badge as ActiveBadge);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try { localStorage.setItem('webtoonChatActiveBadge', activeBadge); } catch {}
-  }, [activeBadge]);
+  // Removed localStorage persistence for activeBadge
 
   function isValidSceneDescription(text: string): { valid: boolean; reason?: string } {
     const t = (text || '').toLowerCase().trim();
@@ -257,6 +298,12 @@ export default function WebtoonBuilder() {
     }
     // Update the selected scene's description and regenerate
     setScenes(prev => prev.map((s, i) => i === selectedSceneIndex ? { ...s, description: text } : s));
+    try {
+      const projectId = sessionStorage.getItem('currentProjectId');
+      if (projectId) {
+        await fetch('/api/generated-scenes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, scene_no: selectedSceneIndex + 1, scene_description: text }) });
+      }
+    } catch {}
     setChatMessages((prev) => [...prev, { role: 'assistant', text: 'Updated the scene description. Regenerating the image...' }]);
     await handleGenerateScene(selectedSceneIndex, text);
   };
@@ -327,14 +374,7 @@ export default function WebtoonBuilder() {
             <ChevronLeft className="h-4 w-4 mr-1" /> Back
           </Button>
           <h1 className="text-3xl font-bold">Create Your Webtoon</h1>
-          <div className="ml-auto">
-            <ChangeArtStyleDialog
-              initialStyle={"Webtoon comic"}
-              onSave={(style) => {
-                try { sessionStorage.setItem('artStyle', style); } catch {}
-              }}
-            />
-          </div>
+          <div className="ml-auto" />
         </div>
         {loading && (
           <div className="text-white/70">Generating scenes...</div>
@@ -494,10 +534,6 @@ export default function WebtoonBuilder() {
                   blobUrls.push(url);
                 }
                 const win = window.open('/webtoon-builder/preview', '_blank');
-                // Fallback: stash tiny blob urls (short) in sessionStorage
-                try {
-                  sessionStorage.setItem('previewBlobUrls', JSON.stringify(blobUrls));
-                } catch {}
                 // Post to the new window when ready
                 setTimeout(() => {
                   try { win?.postMessage({ type: 'webtoon-preview', images: blobUrls }, window.location.origin); } catch {}

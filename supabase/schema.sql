@@ -125,6 +125,38 @@ create policy "art_styles_self_access"
     )
   );
 
+-- GENERATED SCENES (per project; one row per scene)
+create table if not exists public.generated_scenes (
+  id uuid primary key default gen_random_uuid(),
+  project_id uuid not null references public.projects(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  scene_no int not null,
+  story_text text,
+  scene_description text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (project_id, scene_no)
+);
+create index if not exists generated_scenes_project_id_idx on public.generated_scenes(project_id);
+alter table public.generated_scenes enable row level security;
+drop policy if exists "generated_scenes_self_access" on public.generated_scenes;
+create policy "generated_scenes_self_access"
+  on public.generated_scenes for all
+  using (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.projects p
+      where p.id = project_id and p.user_id = auth.uid()
+    )
+  )
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.projects p
+      where p.id = project_id and p.user_id = auth.uid()
+    )
+  );
+
 -- STORAGE: Create a bucket named 'webtoon' in Storage settings.
 -- Recommended: private bucket, use signed URLs for access.
 
