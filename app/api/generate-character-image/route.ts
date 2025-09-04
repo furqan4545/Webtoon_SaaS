@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@/utils/supabase/server";
 
 // Minimal sanitizer to avoid smart quotes and odd whitespace in prompts
 function sanitize(text: string): string {
@@ -19,6 +20,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const description: string | undefined = body?.description;
     const name: string | undefined = body?.name;
+    const projectId: string | undefined = body?.projectId;
 
     const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
     const apiKey = rawKey.replace(/["'“”]/g, "").trim();
@@ -46,6 +48,15 @@ export async function POST(request: NextRequest) {
 
     // Use the official SDK per docs: https://googleapis.github.io/js-genai/ and npm page
     const ai = new GoogleGenAI({ apiKey });
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Quota check
+    const usageRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/usage`, { cache: 'no-store' });
+    const usage = await usageRes.json().catch(() => null);
+    if (usage && usage.remaining !== undefined && Number(usage.remaining) <= 0) {
+      return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
+    }
     // Match Google AI Studio sample model
     const model = 'gemini-2.5-flash-image-preview';
     const config = { responseModalities: ['IMAGE', 'TEXT'] } as any;
@@ -75,8 +86,31 @@ export async function POST(request: NextRequest) {
     }
 
     const dataUrl = `data:${mimeType};base64,${base64}`;
-
-    return NextResponse.json({ success: true, image: dataUrl });
+    // Save to Storage and characters table
+    const buffer = Buffer.from(base64, 'base64');
+    const path = `users/${user.id}/projects/${projectId || 'default'}/characters/${(name || 'character').replace(/\s+/g, '_')}_${Date.now()}.png`;
+    const { data: uploaded, error: upErr } = await supabase.storage.from('webtoon').upload(path, buffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
+    if (upErr) {
+      console.error('storage upload error', upErr);
+    }
+    if (projectId) {
+      const now = new Date().toISOString();
+      await supabase.from('characters').insert({
+        project_id: projectId,
+        user_id: user.id,
+        name: name || 'Character',
+        description,
+        image_path: uploaded?.path || path,
+        created_at: now,
+        updated_at: now,
+      });
+      await supabase.from('projects').update({ updated_at: now }).eq('id', projectId).eq('user_id', user.id);
+    }
+    try { await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/usage`, { method: 'POST' }); } catch {}
+    return NextResponse.json({ success: true, image: dataUrl, path });
   } catch (error: unknown) {
     const err = error as any;
     return NextResponse.json(

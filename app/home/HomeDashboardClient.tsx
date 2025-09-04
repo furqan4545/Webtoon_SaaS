@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Header from "../dashboard/Header";
+import { createClient } from "@/utils/supabase/client";
 
 type ProjectStatus = "draft" | "in_progress" | "completed" | "published";
 
@@ -17,7 +18,7 @@ type Project = {
   coverUrl?: string;
 };
 
-const STORAGE_KEY = "webtoonProjects";
+const supabase = createClient();
 
 export default function HomeDashboardClient() {
   const router = useRouter();
@@ -26,29 +27,23 @@ export default function HomeDashboardClient() {
   const [statusFilter, setStatusFilter] = useState<"all" | ProjectStatus>("all");
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        setProjects(JSON.parse(raw));
-      } else {
-        // Seed with a couple starter examples for empty state
-        const seed: Project[] = [
-          {
-            id: crypto.randomUUID(),
-            title: "Mystic Adventures",
-            status: "in_progress",
-            chapters: 12,
-            modifiedAt: new Date().toISOString(),
-          },
-        ];
-        setProjects(seed);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+    const load = async () => {
+      const { data, error } = await supabase.from('projects').select('*').order('updated_at', { ascending: false });
+      if (!error && data) {
+        setProjects(data.map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          status: p.status as ProjectStatus,
+          chapters: 0,
+          modifiedAt: p.updated_at,
+        })));
       }
-    } catch {}
+    };
+    load();
   }, []);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch {}
+    // No-op: projects persisted server-side
   }, [projects]);
 
   const stats = useMemo(() => {
@@ -66,35 +61,35 @@ export default function HomeDashboardClient() {
     return list;
   }, [projects, sortBy, statusFilter]);
 
-  const createProject = () => {
+  const createProject = async () => {
     const title = `Untitled Webtoon ${projects.length + 1}`;
-    const proj: Project = {
-      id: crypto.randomUUID(),
-      title,
-      status: "draft",
-      chapters: 0,
-      modifiedAt: new Date().toISOString(),
-    };
-    setProjects(prev => [proj, ...prev]);
+    const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
+    const json = await res.json();
+    if (res.ok) {
+      const p = json.project;
+      setProjects(prev => [{ id: p.id, title: p.title, status: p.status, chapters: 0, modifiedAt: p.updated_at }, ...prev]);
+    }
   };
 
-  const deleteProject = (id: string) => {
+  const deleteProject = async (id: string) => {
+    await fetch(`/api/projects?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     setProjects(prev => prev.filter(p => p.id !== id));
   };
 
-  const renameProject = (id: string) => {
+  const renameProject = async (id: string) => {
     const name = prompt("Rename project");
     if (!name) return;
-    setProjects(prev => prev.map(p => p.id === id ? { ...p, title: name, modifiedAt: new Date().toISOString() } : p));
+    const res = await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, title: name }) });
+    if (res.ok) setProjects(prev => prev.map(p => p.id === id ? { ...p, title: name, modifiedAt: new Date().toISOString() } : p));
   };
 
-  const cycleStatus = (id: string) => {
+  const cycleStatus = async (id: string) => {
     const order: ProjectStatus[] = ["draft", "in_progress", "completed", "published"];
-    setProjects(prev => prev.map(p => {
-      if (p.id !== id) return p;
-      const idx = order.indexOf(p.status);
-      return { ...p, status: order[(idx + 1) % order.length], modifiedAt: new Date().toISOString() };
-    }));
+    const curr = projects.find(p => p.id === id);
+    if (!curr) return;
+    const next = order[(order.indexOf(curr.status) + 1) % order.length];
+    const res = await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: next }) });
+    if (res.ok) setProjects(prev => prev.map(p => p.id === id ? { ...p, status: next, modifiedAt: new Date().toISOString() } : p));
   };
 
   return (

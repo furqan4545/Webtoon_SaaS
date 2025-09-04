@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@/utils/supabase/server";
 
 function sanitize(text: string): string {
   if (!text) return "";
@@ -15,7 +16,7 @@ function sanitize(text: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { sceneDescription, storyText, characterImages, artStyle } = await request.json();
+    const { sceneDescription, storyText, characterImages, artStyle, projectId, sceneIndex } = await request.json();
     if (!sceneDescription || !storyText) {
       return NextResponse.json({ error: "sceneDescription and storyText are required" }, { status: 400 });
     }
@@ -27,6 +28,16 @@ export async function POST(request: NextRequest) {
     }
 
     const ai = new GoogleGenAI({ apiKey });
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Quota check
+    const usageRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/usage`, { cache: 'no-store' });
+    const usage = await usageRes.json().catch(() => null);
+    if (usage && usage.remaining !== undefined && Number(usage.remaining) <= 0) {
+      return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
+    }
     const model = 'gemini-2.5-flash-image-preview';
     const config = { responseModalities: ['IMAGE', 'TEXT'] } as any;
 
@@ -81,7 +92,37 @@ export async function POST(request: NextRequest) {
           throw Object.assign(new Error('No image returned from model'), { status: 502, textOut });
         }
         const dataUrl = `data:${mimeType};base64,${base64}`;
-        return NextResponse.json({ success: true, image: dataUrl }, { headers: { 'Cache-Control': 'no-store' } });
+
+        // Save to Storage and DB
+        const buffer = Buffer.from(base64, 'base64');
+        const path = `users/${user.id}/projects/${projectId || 'default'}/scenes/${sceneIndex ?? Date.now()}.png`;
+        // Upload to Supabase Storage bucket 'webtoon'
+        const { data: uploaded, error: upErr } = await supabase.storage.from('webtoon').upload(path, buffer, {
+          contentType: mimeType,
+          upsert: true,
+        });
+        if (upErr) {
+          console.error('storage upload error', upErr);
+        }
+        // Insert or upsert scene row if projectId provided
+        if (projectId != null && sceneIndex != null) {
+          const now = new Date().toISOString();
+          await supabase.from('scenes').upsert({
+            project_id: projectId,
+            user_id: user.id,
+            idx: Number(sceneIndex),
+            description: sceneDescription,
+            story_text: storyText,
+            image_path: uploaded?.path || path,
+            updated_at: now,
+          }, { onConflict: 'project_id,idx' });
+          await supabase.from('projects').update({ updated_at: now }).eq('id', projectId).eq('user_id', user.id);
+        }
+
+        // Increment usage
+        try { await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/usage`, { method: 'POST' }); } catch {}
+
+        return NextResponse.json({ success: true, image: dataUrl, path }, { headers: { 'Cache-Control': 'no-store' } });
       } catch (err: any) {
         const status = err?.status || err?.code || 500;
         console.error(`[scene-image] attempt ${attempt} failed`, { status, message: err?.message });
