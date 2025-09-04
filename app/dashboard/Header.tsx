@@ -2,7 +2,7 @@
 
 import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -16,6 +16,7 @@ import {
 export default function Header() {
   const supabase = createClient();
   const router = useRouter();
+  const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
   const [isNavigatingHome, setIsNavigatingHome] = useState(false);
 
@@ -54,6 +55,7 @@ export default function Header() {
       <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
         <button
           onClick={() => {
+            if (pathname === '/') return;
             setIsNavigatingHome(true);
             router.push('/');
           }}
