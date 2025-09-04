@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
@@ -16,19 +16,28 @@ export default function ImportStory() {
   const [storyText, setStoryText] = useState("");
   const router = useRouter();
   const supabase = createBrowserSupabase();
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Hydrate existing project's story if available
+  // Hydrate from cache first (instant), then refresh from server
   useEffect(() => {
     const load = async () => {
       try {
         const projectId = sessionStorage.getItem('currentProjectId');
         if (!projectId) return;
+        const cacheKey = `projectStory:${projectId}`;
+        try {
+          const cached = localStorage.getItem(cacheKey) || sessionStorage.getItem('story');
+          if (cached && typeof cached === 'string') {
+            setStoryText(cached);
+          }
+        } catch {}
         const res = await fetch(`/api/projects?id=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
         const json = await res.json();
         const story = json?.project?.story as string | undefined;
         if (story && typeof story === 'string' && story.trim()) {
           setStoryText(story);
           try { sessionStorage.setItem('story', story); } catch {}
+          try { localStorage.setItem(cacheKey, story); } catch {}
         }
       } catch {}
     };
@@ -44,9 +53,30 @@ export default function ImportStory() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user && projectId) {
         await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, story: storyText }) });
+        try { localStorage.setItem(`projectStory:${projectId}`, storyText); } catch {}
       }
     } catch {}
     router.push("/choose-art-style");
+  };
+
+  // Cache-first editing: update local cache immediately and debounce DB save
+  const handleChange = (value: string) => {
+    setStoryText(value);
+    try {
+      sessionStorage.setItem('story', value);
+      const projectId = sessionStorage.getItem('currentProjectId');
+      if (projectId) localStorage.setItem(`projectStory:${projectId}`, value);
+    } catch {}
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user && projectId) {
+          await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, story: value }) });
+        }
+      } catch {}
+    }, 800);
   };
 
   return (
@@ -83,7 +113,7 @@ For example:
 
 Include character descriptions, dialogue, and scene details - the more descriptive, the better we can visualize your story!"
                   value={storyText}
-                  onChange={(e) => setStoryText(e.target.value)}
+                  onChange={(e) => handleChange(e.target.value)}
                   className="h-[400px] bg-white/5 border-white/10 text-white placeholder:text-white/50 resize-none overflow-y-auto"
                 />
                 <div className="flex justify-between items-center text-sm">
