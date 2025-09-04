@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@/utils/supabase/server";
 
 function sanitize(text: string): string {
   if (!text) return "";
@@ -15,10 +16,8 @@ function sanitize(text: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { imageDataUrl, instruction } = await request.json();
-    if (!imageDataUrl || typeof imageDataUrl !== 'string') {
-      return NextResponse.json({ error: 'imageDataUrl is required' }, { status: 400 });
-    }
+    const { imageDataUrl, instruction, projectId, sceneNo } = await request.json();
+    if (!imageDataUrl || typeof imageDataUrl !== 'string') return NextResponse.json({ error: 'imageDataUrl is required' }, { status: 400 });
     const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
     const apiKey = rawKey.replace(/["'“”]/g, "").trim();
     if (!apiKey) {
@@ -26,13 +25,29 @@ export async function POST(request: NextRequest) {
     }
 
     const ai = new GoogleGenAI({ apiKey });
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const model = 'gemini-2.5-flash-image-preview';
     const config = { responseModalities: ['IMAGE', 'TEXT'] } as any;
 
-    const [meta, b64] = String(imageDataUrl).split(',');
-    const mime = meta?.match(/data:(.*?);base64/)?.[1] || 'image/png';
-    if (!b64) {
-      return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
+    let b64: string | undefined;
+    let mime: string = 'image/png';
+    if (String(imageDataUrl).startsWith('data:')) {
+      const [meta, body] = String(imageDataUrl).split(',');
+      mime = meta?.match(/data:(.*?);base64/)?.[1] || 'image/png';
+      b64 = body;
+    } else {
+      // Remote URL case
+      try {
+        const resp = await fetch(String(imageDataUrl));
+        const ab = await resp.arrayBuffer();
+        const buf = Buffer.from(ab);
+        b64 = buf.toString('base64');
+        mime = resp.headers.get('content-type') || 'image/png';
+      } catch {
+        return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
+      }
     }
 
     const sys = sanitize(
@@ -57,6 +72,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No image returned from model', text: textOut }, { status: 502 });
     }
     const dataUrl = `data:${outMime};base64,${outB64}`;
+
+    // Persist to storage and generated_scene_images just like remove-background
+    if (projectId && typeof sceneNo === 'number') {
+      try {
+        const buffer = Buffer.from(outB64, 'base64');
+        const { data: genScene } = await supabase
+          .from('generated_scenes')
+          .select('id')
+          .eq('project_id', projectId)
+          .eq('user_id', user.id)
+          .eq('scene_no', sceneNo)
+          .single();
+        const now = new Date().toISOString();
+        const path = `users/${user.id}/projects/${projectId}/scenes/scene_${sceneNo}_edit.png`;
+        const upload = await supabase.storage.from('webtoon').upload(path, buffer, { contentType: outMime, upsert: true });
+        if (!upload.error && genScene?.id) {
+          const { data: existing } = await supabase
+            .from('generated_scene_images')
+            .select('id,image_path')
+            .eq('project_id', projectId)
+            .eq('user_id', user.id)
+            .eq('scene_no', sceneNo)
+            .single();
+          if (existing?.id) {
+            if (existing.image_path && existing.image_path !== path) {
+              try { await supabase.storage.from('webtoon').remove([existing.image_path]); } catch {}
+            }
+            await supabase.from('generated_scene_images').update({ image_path: path, updated_at: now }).eq('id', existing.id);
+          } else {
+            await supabase.from('generated_scene_images').insert({ project_id: projectId, user_id: user.id, scene_id: genScene.id, scene_no: sceneNo, image_path: path, created_at: now, updated_at: now });
+          }
+          await supabase.from('projects').update({ updated_at: now }).eq('id', projectId).eq('user_id', user.id);
+        }
+      } catch {}
+    }
+
     return NextResponse.json({ success: true, image: dataUrl }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: any) {
     return NextResponse.json({ error: 'Failed to edit scene image', details: error?.message || 'Unknown' }, { status: 500 });
