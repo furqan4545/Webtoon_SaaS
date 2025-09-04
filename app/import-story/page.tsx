@@ -17,6 +17,7 @@ export default function ImportStory() {
   const router = useRouter();
   const supabase = createBrowserSupabase();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Load story from DB for the current project only
   useEffect(() => {
@@ -90,6 +91,33 @@ export default function ImportStory() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file"
+                    accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      setUploading(true);
+                      try {
+                        const fd = new FormData();
+                        fd.append('file', f);
+                        const res = await fetch('/api/extract-text', { method: 'POST', body: fd });
+                        const j = await res.json();
+                        if (res.ok && typeof j?.text === 'string') {
+                          setStoryText(j.text);
+                          // trigger debounced save
+                          handleChange(j.text);
+                        }
+                      } finally {
+                        setUploading(false);
+                        e.currentTarget.value = '';
+                      }
+                    }}
+                    className="text-sm"
+                  />
+                  {uploading && <span className="text-xs text-white/60">Extracting text...</span>}
+                </div>
                 <Textarea
                   placeholder="Paste your story here...
 
