@@ -40,11 +40,21 @@ export default function ChooseArtStyle() {
   const supabase = createClient();
 
   useEffect(() => {
-    const existing = sessionStorage.getItem('artStyle');
-    if (existing) {
-      setStyleText(existing);
-      setCharCount(existing.length);
-    }
+    // Load any existing saved art style from DB (optional prefill)
+    (async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || !projectId) return;
+        const res = await fetch(`/api/art-style?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+        const json = await res.json();
+        const pre = (json?.artStyle?.description as string | undefined) || '';
+        if (pre) {
+          setStyleText(pre);
+          setCharCount(pre.length);
+        }
+      } catch {}
+    })();
   }, []);
 
   const appendStyle = (text: string) => {
@@ -56,18 +66,20 @@ export default function ChooseArtStyle() {
   const handleContinue = async () => {
     const text = styleText.trim();
     if (!text) return;
-    sessionStorage.setItem('artStyle', text);
-    // Persist to current project and characters as a baseline style
+    // Persist to new art_styles table and project
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
       const { data: { user } } = await supabase.auth.getUser();
       if (user && projectId) {
-        // Save to project
+        // Update existing art style row (no upsert)
+        const res = await fetch('/api/art-style', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, description: text }) });
+        // If not found, optionally create once here, but per request we won't upsert.
+        // Mirror to projects.art_style for convenience
         await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, art_style: text }) });
         // If characters already exist for this project, skip generation and go straight to editor
         try {
-          const res = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
-          const json = await res.json();
+          const resChars = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+          const json = await resChars.json();
           if (Array.isArray(json.characters) && json.characters.length > 0) {
             router.push('/generate-characters');
             return;
