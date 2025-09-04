@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Header from "../dashboard/Header";
 import { createClient } from "@/utils/supabase/client";
+import { Trash2 } from "lucide-react";
 
 type ProjectStatus = "draft" | "in_progress" | "completed" | "published";
 
@@ -180,66 +181,43 @@ export default function HomeDashboardClient() {
             <option value="completed">Completed</option>
             <option value="published">Published</option>
           </select>
-          <Button
-            variant="outline"
-            className="border-white/20 text-white hover:bg-white/10"
-            onClick={createProject}
-          >
-            + New Project (local)
-          </Button>
+          <div className="hidden" />
         </div>
 
         {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
           {filtered.map((p) => (
-            <Card key={p.id} className="border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
+            <Card
+              key={p.id}
+              className="group border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden hover:bg-white/10 transition-colors cursor-pointer"
+              onClick={() => {
+                try { sessionStorage.setItem('currentProjectId', p.id); } catch {}
+                router.push('/dashboard');
+              }}
+            >
               <div className={`relative h-40 ${pickGradient(p.id)} border-b border-white/10`} />
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg truncate">{p.title}</CardTitle>
+                <div className="flex items-start justify-between gap-3">
+                  <CardTitle className="text-lg truncate">{p.title}</CardTitle>
+                  <button
+                    className="opacity-70 hover:opacity-100 text-red-300 hover:text-red-400 cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); deleteProject(p.id); }}
+                    aria-label="Delete project"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </CardHeader>
               <CardContent className="pt-0 text-sm text-white/70">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-white/10">
-                      {p.status.replace("_", " ")}
-                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-white/10">unpublished</span>
                     <span>{p.chapters} chapters</span>
                   </div>
                   <span className="text-xs">Modified: {new Date(p.modifiedAt).toLocaleDateString()}</span>
                 </div>
               </CardContent>
-              <CardFooter className="flex items-center gap-2">
-                <Button
-                  className="bg-white text-black hover:opacity-90"
-                  onClick={() => {
-                    try { sessionStorage.setItem('currentProjectId', p.id); } catch {}
-                    router.push("/dashboard");
-                  }}
-                >
-                  Open
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-white/20 text-white hover:bg-white/10"
-                  onClick={() => renameProject(p.id)}
-                >
-                  Rename
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-white/20 text-white hover:bg-white/10"
-                  onClick={() => cycleStatus(p.id)}
-                >
-                  Set Status
-                </Button>
-                <Button
-                  variant="outline"
-                  className="ml-auto border-red-500/30 text-red-300 hover:bg-red-500/10"
-                  onClick={() => deleteProject(p.id)}
-                >
-                  Delete
-                </Button>
-              </CardFooter>
             </Card>
           ))}
         </div>

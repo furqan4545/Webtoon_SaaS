@@ -17,6 +17,7 @@ export default function Header() {
   const supabase = createClient();
   const router = useRouter();
   const [email, setEmail] = useState<string | null>(null);
+  const [isNavigatingHome, setIsNavigatingHome] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -34,8 +35,17 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-30 w-full border-b border-white/10 bg-gradient-to-b from-black/40 to-transparent backdrop-blur">
+      {/* top progress bar on navigate */}
+      <div className={`fixed left-0 top-0 h-0.5 w-full bg-gradient-to-r from-fuchsia-500 via-indigo-400 to-fuchsia-500 transition-opacity ${isNavigatingHome ? 'opacity-100 animate-pulse' : 'opacity-0 pointer-events-none'}`} />
       <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
-        <button onClick={() => router.push('/')} className="text-left text-xl font-semibold tracking-tight">
+        <button
+          onClick={() => {
+            setIsNavigatingHome(true);
+            router.push('/');
+          }}
+          className="text-left text-xl font-semibold tracking-tight cursor-pointer"
+          aria-label="Go to Home"
+        >
           <span className="text-white">Web</span>
           <span className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 bg-clip-text text-transparent">Toon</span>
         </button>
