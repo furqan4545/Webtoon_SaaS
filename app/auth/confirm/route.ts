@@ -23,15 +23,22 @@ export async function GET(request: NextRequest) {
         if (user) {
           const now = new Date();
           const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0,10);
-          await supabase.from('profiles').upsert({
+          const payload: any = {
             user_id: user.id,
             email: user.email,
             full_name: (user.user_metadata?.full_name || user.user_metadata?.name || '').toString() || null,
             avatar_url: (user.user_metadata?.avatar_url || '').toString() || null,
             month_start: firstOfMonth,
-          }, { onConflict: 'user_id' });
+          };
+          let { error: upErr } = await supabase.from('profiles').upsert(payload, { onConflict: 'user_id' });
+          if (upErr) {
+            console.error('profiles upsert (confirm) failed:', upErr?.message);
+            await supabase.from('profiles').upsert({ user_id: user.id, month_start: firstOfMonth }, { onConflict: 'user_id' });
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.error('profiles upsert error (confirm):', e);
+      }
       // redirect user to specified redirect URL or root of app
       redirect(next);
     }

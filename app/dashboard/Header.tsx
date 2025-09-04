@@ -19,7 +19,12 @@ export default function Header() {
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    supabase.auth.getUser().then(async ({ data }) => {
+      setEmail(data.user?.email ?? null);
+      if (data.user) {
+        try { await fetch('/api/profile', { method: 'POST' }); } catch {}
+      }
+    });
   }, []);
 
   const logout = async () => {
