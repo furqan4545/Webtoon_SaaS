@@ -76,15 +76,6 @@ export async function POST(request: NextRequest) {
         const path = `users/${user.id}/projects/${projectId}/scenes/scene_${sceneNo}_nobg.png`;
         const upload = await supabase.storage.from('webtoon').upload(path, buffer, { contentType: outMime, upsert: true });
         if (!upload.error) {
-          // Update scenes table
-          await supabase.from('scenes').upsert({
-            project_id: projectId,
-            user_id: user.id,
-            idx: sceneNo,
-            image_path: path,
-            updated_at: now,
-          }, { onConflict: 'project_id,idx' });
-          // Update generated_scene_images: update if exists, else insert
           if (genScene?.id) {
             const { data: existing } = await supabase
               .from('generated_scene_images')
