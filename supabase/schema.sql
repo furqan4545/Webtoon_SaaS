@@ -29,6 +29,7 @@ create table if not exists public.projects (
   title text not null,
   status text not null default 'draft',
   story text,
+  art_style text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -47,6 +48,7 @@ create table if not exists public.characters (
   user_id uuid not null references auth.users(id) on delete cascade,
   name text,
   description text,
+  art_style text,
   image_path text, -- Supabase Storage path
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -87,5 +89,7 @@ create policy "scenes_self_access"
 alter table if exists public.profiles add column if not exists email text;
 alter table if exists public.profiles add column if not exists full_name text;
 alter table if exists public.profiles add column if not exists avatar_url text;
+alter table if exists public.projects add column if not exists art_style text;
+alter table if exists public.characters add column if not exists art_style text;
 
 
