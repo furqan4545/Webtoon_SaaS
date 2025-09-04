@@ -75,7 +75,13 @@ export async function POST(request: NextRequest) {
       },
     ];
 
-    const response = await ai.models.generateContent({ model, config, contents });
+    let response: any;
+    try {
+      response = await ai.models.generateContent({ model, config, contents });
+    } catch (genErr: any) {
+      console.error('gemini generate error', genErr?.message || genErr);
+      return NextResponse.json({ error: 'AI generation failed', details: genErr?.message || 'unknown' }, { status: 502 });
+    }
 
     // Extract inline image data (base64) from candidates
     const r: any = response as any;
@@ -110,16 +116,37 @@ export async function POST(request: NextRequest) {
     }
     if (projectId) {
       const now = new Date().toISOString();
-      await supabase.from('characters').insert({
-        project_id: projectId,
-        user_id: user.id,
-        name: name || 'Character',
-        description,
-        art_style: artStyle || null,
-        image_path: uploaded?.path || path,
-        created_at: now,
-        updated_at: now,
-      });
+      const newPath = uploaded?.path || path;
+      // Update if exists, else insert; also remove old image if replacing
+      const { data: existing } = await supabase
+        .from('characters')
+        .select('id,image_path')
+        .eq('project_id', projectId)
+        .eq('user_id', user.id)
+        .eq('name', name || 'Character')
+        .single();
+      if (existing) {
+        if (existing.image_path && existing.image_path !== newPath) {
+          try { await supabase.storage.from('webtoon').remove([existing.image_path]); } catch {}
+        }
+        await supabase.from('characters').update({
+          description,
+          art_style: artStyle || null,
+          image_path: newPath,
+          updated_at: now,
+        }).eq('id', existing.id);
+      } else {
+        await supabase.from('characters').insert({
+          project_id: projectId,
+          user_id: user.id,
+          name: name || 'Character',
+          description,
+          art_style: artStyle || null,
+          image_path: newPath,
+          created_at: now,
+          updated_at: now,
+        });
+      }
       await supabase.from('projects').update({ updated_at: now }).eq('id', projectId).eq('user_id', user.id);
     }
     try {
