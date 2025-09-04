@@ -22,10 +22,23 @@ export async function POST(request: NextRequest) {
     const model = 'gemini-2.5-flash-image-preview';
     const config = { responseModalities: ['IMAGE', 'TEXT'] } as any;
 
-    const [meta, b64] = String(imageDataUrl).split(',');
-    const mime = meta?.match(/data:(.*?);base64/)?.[1] || 'image/png';
-    if (!b64) {
-      return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
+    let b64: string | undefined;
+    let mime: string = 'image/png';
+    if (String(imageDataUrl).startsWith('data:')) {
+      const [meta, body] = String(imageDataUrl).split(',');
+      mime = meta?.match(/data:(.*?);base64/)?.[1] || 'image/png';
+      b64 = body;
+    } else {
+      // Treat as remote URL: fetch and convert to base64
+      try {
+        const resp = await fetch(String(imageDataUrl));
+        const ab = await resp.arrayBuffer();
+        const buf = Buffer.from(ab);
+        b64 = buf.toString('base64');
+        mime = resp.headers.get('content-type') || 'image/png';
+      } catch {
+        return NextResponse.json({ error: 'Invalid imageDataUrl' }, { status: 400 });
+      }
     }
 
     const prompt = 'Remove the background from the given picture. Keep the subject intact and edges clean. Output on a plain white background.';
