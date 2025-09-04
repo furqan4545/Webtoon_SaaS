@@ -34,6 +34,7 @@ export default function WebtoonBuilder() {
   const [activeBadge, setActiveBadge] = useState<ActiveBadge>('none');
   const supabase = createBrowserSupabase();
   const [artStyle, setArtStyle] = useState<string>("");
+  const [refImages, setRefImages] = useState<Array<{ name: string; dataUrl: string }>>([]);
   const quickActions = [
     "More dramatic",
     "Add dialogue",
@@ -50,27 +51,7 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
-      const characterImages: Array<{ name: string; dataUrl: string }> = [];
-      if (projectId) {
-        const r = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
-        const j = await r.json();
-        const list = Array.isArray(j.characters) ? j.characters : [];
-        for (let i = 0; i < list.length; i++) {
-          const c = list[i];
-          if (!c?.image_path) continue;
-          const signed = await supabase.storage.from('webtoon').createSignedUrl(c.image_path, 60 * 30);
-          const url = signed.data?.signedUrl;
-          if (!url) continue;
-          const resp = await fetch(url);
-          const blob = await resp.blob();
-          const b64 = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.readAsDataURL(blob);
-          });
-          characterImages.push({ name: c.name || `Character ${i+1}`, dataUrl: b64 });
-        }
-      }
+      const characterImages: Array<{ name: string; dataUrl: string }> = refImages;
       const res = await fetch('/api/generate-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,6 +60,8 @@ export default function WebtoonBuilder() {
           storyText: scenes[index].storyText,
           characterImages,
           artStyle: artStyle || undefined,
+          projectId: projectId || undefined,
+          sceneIndex: index + 1,
         })
       });
       const data = await res.json();
@@ -165,6 +148,38 @@ export default function WebtoonBuilder() {
           const r = await fetch(`/api/generated-scenes?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
           const j = await r.json();
           existingScenes = Array.isArray(j.scenes) ? j.scenes : [];
+        } catch {}
+
+        // Preload and cache character reference images locally for this session
+        try {
+          const cacheKey = `projectRefImages:${projectId}`;
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+            const list = JSON.parse(cached) as Array<{ name: string; dataUrl: string }>;
+            setRefImages(list);
+          } else {
+            const r = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+            const j = await r.json();
+            const list = Array.isArray(j.characters) ? j.characters : [];
+            const refs: Array<{ name: string; dataUrl: string }> = [];
+            for (let i = 0; i < list.length; i++) {
+              const c = list[i];
+              if (!c?.image_path) continue;
+              const signed = await supabase.storage.from('webtoon').createSignedUrl(c.image_path, 60 * 60);
+              const url = signed.data?.signedUrl;
+              if (!url) continue;
+              const resp = await fetch(url);
+              const blob = await resp.blob();
+              const b64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsDataURL(blob); });
+              refs.push({ name: c.name || `Character ${i+1}`, dataUrl: b64 });
+            }
+            setRefImages(refs);
+            try { localStorage.setItem(cacheKey, JSON.stringify(refs)); } catch {}
+          }
+          // Clear cache when leaving page
+          window.addEventListener('beforeunload', () => {
+            try { localStorage.removeItem(`projectRefImages:${projectId}`); } catch {}
+          }, { once: true });
         } catch {}
 
         if (existingScenes.length > 0) {
