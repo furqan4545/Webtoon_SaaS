@@ -79,12 +79,13 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
     for (const ch of characterList) initial[ch.id] = undefined;
     setPreviewImages(initial);
     // Run sequentially: one character at a time
+    const projectId = typeof window !== 'undefined' ? sessionStorage.getItem('currentProjectId') : null;
     for (const ch of characterList) {
       try {
         const res = await fetch('/api/generate-character-with-newArt', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: ch.name, description: ch.description, artStyle: style }),
+          body: JSON.stringify({ projectId, name: ch.name, description: ch.description, artStyle: style }),
         });
         const data = await res.json();
         if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed');
