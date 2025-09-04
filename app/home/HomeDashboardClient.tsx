@@ -103,7 +103,17 @@ export default function HomeDashboardClient() {
           </div>
           <Button
             className="h-10 px-4 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95"
-            onClick={() => router.push("/dashboard")}
+            onClick={async () => {
+              // Create a project immediately then go to dashboard
+              const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Untitled Webtoon' }) });
+              if (res.ok) {
+                const { project } = await res.json();
+                // persist current projectId for downstream pages
+                try { sessionStorage.setItem('currentProjectId', project.id); } catch {}
+                setProjects(prev => [{ id: project.id, title: project.title, status: project.status, chapters: 0, modifiedAt: project.updated_at }, ...prev]);
+              }
+              router.push("/dashboard");
+            }}
           >
             + Create New Webtoon
           </Button>
@@ -186,7 +196,10 @@ export default function HomeDashboardClient() {
               <CardFooter className="flex items-center gap-2">
                 <Button
                   className="bg-white text-black hover:opacity-90"
-                  onClick={() => router.push("/dashboard")}
+                  onClick={() => {
+                    try { sessionStorage.setItem('currentProjectId', p.id); } catch {}
+                    router.push("/dashboard");
+                  }}
                 >
                   Open
                 </Button>

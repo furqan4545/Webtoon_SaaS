@@ -12,6 +12,7 @@ export async function GET(request: Request) {
     const supabase = createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      try { await fetch(`${origin}/api/profile`, { method: 'POST', headers: { 'Content-Type': 'application/json' } }); } catch {}
       const forwardedHost = request.headers.get("x-forwarded-host"); // original origin before load balancer
       const isLocalEnv = process.env.NODE_ENV === "development";
       if (isLocalEnv) {

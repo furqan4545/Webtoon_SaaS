@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
+import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
 import Header from "../dashboard/Header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,13 +15,38 @@ import Link from "next/link";
 export default function ImportStory() {
   const [storyText, setStoryText] = useState("");
   const router = useRouter();
+  const supabase = createBrowserSupabase();
 
-  const handleProcessStory = () => {
-    if (storyText.length >= 100) {
-      // Store story in sessionStorage and navigate to art style selection
+  // Hydrate existing project's story if available
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        if (!projectId) return;
+        const res = await fetch(`/api/projects?id=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+        const json = await res.json();
+        const story = json?.project?.story as string | undefined;
+        if (story && typeof story === 'string' && story.trim()) {
+          setStoryText(story);
+          try { sessionStorage.setItem('story', story); } catch {}
+        }
+      } catch {}
+    };
+    load();
+  }, []);
+
+  const handleProcessStory = async () => {
+    if (storyText.length < 100) return;
+    try {
       sessionStorage.setItem('story', storyText);
-      router.push("/choose-art-style");
-    }
+      const projectId = sessionStorage.getItem('currentProjectId');
+      // Save story to the selected project if available
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user && projectId) {
+        await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, story: storyText }) });
+      }
+    } catch {}
+    router.push("/choose-art-style");
   };
 
   return (

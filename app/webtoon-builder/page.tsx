@@ -110,7 +110,21 @@ export default function WebtoonBuilder() {
     hasRun.current = true;
     const run = async () => {
       try {
-        const story = sessionStorage.getItem('story');
+        let story = sessionStorage.getItem('story');
+        if (!story) {
+          try {
+            const projectId = sessionStorage.getItem('currentProjectId');
+            if (projectId) {
+              const resProj = await fetch(`/api/projects?id=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+              const j = await resProj.json();
+              const s = j?.project?.story as string | undefined;
+              if (s && typeof s === 'string' && s.trim()) {
+                story = s;
+                try { sessionStorage.setItem('story', s); } catch {}
+              }
+            }
+          } catch {}
+        }
         if (!story) {
           setError('No story found.');
           setLoading(false);

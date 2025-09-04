@@ -9,6 +9,9 @@ create table if not exists public.profiles (
   plan text not null default 'free', -- 'free' | 'pro'
   month_start date not null default date_trunc('month', now())::date,
   images_generated int not null default 0,
+  email text,
+  full_name text,
+  avatar_url text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -79,5 +82,10 @@ create policy "scenes_self_access"
 
 -- STORAGE: Create a bucket named 'webtoon' in Storage settings.
 -- Recommended: private bucket, use signed URLs for access.
+
+-- Safe alters if table already exists
+alter table if exists public.profiles add column if not exists email text;
+alter table if exists public.profiles add column if not exists full_name text;
+alter table if exists public.profiles add column if not exists avatar_url text;
 
 

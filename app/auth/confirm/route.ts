@@ -18,6 +18,10 @@ export async function GET(request: NextRequest) {
       token_hash,
     });
     if (!error) {
+      try {
+        const origin = process.env.NEXT_PUBLIC_BASE_URL || '';
+        await fetch(`${origin}/api/profile`, { method: 'POST' });
+      } catch {}
       // redirect user to specified redirect URL or root of app
       redirect(next);
     }
