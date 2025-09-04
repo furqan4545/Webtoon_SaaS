@@ -61,6 +61,21 @@ export default function HomeDashboardClient() {
     return list;
   }, [projects, sortBy, statusFilter]);
 
+  const gradients = [
+    'bg-gradient-to-br from-fuchsia-500/30 to-indigo-500/30',
+    'bg-gradient-to-br from-sky-400/30 to-indigo-500/30',
+    'bg-gradient-to-br from-emerald-400/30 to-teal-500/30',
+    'bg-gradient-to-br from-amber-400/30 to-rose-500/30',
+    'bg-gradient-to-br from-purple-500/30 to-pink-500/30',
+    'bg-gradient-to-br from-cyan-400/30 to-blue-500/30',
+    'bg-gradient-to-br from-lime-400/30 to-green-500/30',
+  ];
+  const pickGradient = (id: string) => {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+    return gradients[hash % gradients.length];
+  };
+
   const createProject = async () => {
     const title = `Untitled Webtoon ${projects.length + 1}`;
     const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
@@ -178,7 +193,7 @@ export default function HomeDashboardClient() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
           {filtered.map((p) => (
             <Card key={p.id} className="border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
-              <div className="relative h-40 bg-gradient-to-br from-neutral-800 to-neutral-700" />
+              <div className={`relative h-40 ${pickGradient(p.id)} border-b border-white/10`} />
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg truncate">{p.title}</CardTitle>
               </CardHeader>

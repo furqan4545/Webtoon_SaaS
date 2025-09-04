@@ -35,10 +35,10 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-30 w-full border-b border-white/10 bg-gradient-to-b from-black/40 to-transparent backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
-        <div className="text-xl font-semibold tracking-tight">
+        <button onClick={() => router.push('/')} className="text-left text-xl font-semibold tracking-tight">
           <span className="text-white">Web</span>
           <span className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 bg-clip-text text-transparent">Toon</span>
-        </div>
+        </button>
         <DropdownMenu>
           <DropdownMenuTrigger className="rounded-full focus:outline-none">
             <div className="flex items-center gap-3">
