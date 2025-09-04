@@ -94,13 +94,13 @@ export default function ImportStory() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm text-white/70">Upload PDF, Word (.docx), or TXT to extract text</div>
+                  <div className="text-sm text-white/70">Upload Word (.docx) or TXT to extract text</div>
                   <div className="flex items-center gap-3">
                     <input
                       ref={uploadRef}
                       type="file"
                       hidden
-                      accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      accept=".txt,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
                       onChange={async (e) => {
                         const input = e.currentTarget as HTMLInputElement | null;
                         const f = input?.files?.[0];
