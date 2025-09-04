@@ -24,6 +24,16 @@ export default function GenerateCharacters() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const projectId = typeof window !== 'undefined' ? sessionStorage.getItem('currentProjectId') || undefined : undefined;
+
+  const persistCharacter = (c: Character) => {
+    if (!projectId) return;
+    const name = c.name || 'Character';
+    const body: any = { projectId, name };
+    if (c.description !== undefined) body.description = c.description;
+    if (c.artStyle !== undefined) body.artStyle = c.artStyle;
+    fetch('/api/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
+  };
 
   useEffect(() => {
     const loadCharacters = () => {
@@ -32,6 +42,13 @@ export default function GenerateCharacters() {
         if (storedCharacters) {
           const parsedCharacters = JSON.parse(storedCharacters);
           setCharacters(parsedCharacters);
+          try {
+            (parsedCharacters as Character[]).forEach((c) => {
+              if ((c.description && c.description.trim()) || (c.artStyle && c.artStyle.trim())) {
+                persistCharacter(c);
+              }
+            });
+          } catch {}
         } else {
           const projectId = sessionStorage.getItem('currentProjectId');
           if (projectId) {
@@ -80,12 +97,8 @@ export default function GenerateCharacters() {
       const updated = characters.map(c => c.id === id ? { ...c, description } : c);
       sessionStorage.setItem('characters', JSON.stringify(updated));
     } catch {}
-    const projectId = sessionStorage.getItem('currentProjectId');
-    if (projectId) {
-      const current = characters.find(c => c.id === id);
-      const name = current?.name || `Character`;
-      fetch('/api/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, name, description, artStyle: current?.artStyle }) }).catch(() => {});
-    }
+    const current = characters.find(c => c.id === id);
+    persistCharacter({ ...(current as Character), description });
   };
 
   const removeCharacter = (id: string) => {
@@ -237,7 +250,16 @@ export default function GenerateCharacters() {
                     <Textarea
                       placeholder="Override art style for this character (optional)"
                       value={character.artStyle || ''}
-                      onChange={(e) => setCharacters(prev => prev.map(c => c.id === character.id ? { ...c, artStyle: e.target.value } : c))}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setCharacters(prev => prev.map(c => c.id === character.id ? { ...c, artStyle: value } : c));
+                        try {
+                          const updated = characters.map(c => c.id === character.id ? { ...c, artStyle: value } : c);
+                          sessionStorage.setItem('characters', JSON.stringify(updated));
+                        } catch {}
+                        const current = characters.find(c => c.id === character.id);
+                        persistCharacter({ ...(current as Character), artStyle: value });
+                      }}
                       className="h-20 bg-white/5 border-white/10 text-white placeholder:text-white/50 resize-none"
                     />
                     <div className="text-xs text-white/60 mt-1">{(character.artStyle || '').length} characters</div>
