@@ -374,10 +374,11 @@ export default function WebtoonBuilder() {
     if (!scene?.imageDataUrl) return;
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
+      const projectId = sessionStorage.getItem('currentProjectId');
       const res = await fetch('/api/edit-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: scene.imageDataUrl, instruction }),
+        body: JSON.stringify({ imageDataUrl: scene.imageDataUrl, instruction, projectId: projectId || undefined, sceneNo: index + 1 }),
       });
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to edit scene image');
