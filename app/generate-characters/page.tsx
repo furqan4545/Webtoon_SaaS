@@ -40,7 +40,7 @@ export default function GenerateCharacters() {
       try {
         const storedCharacters = sessionStorage.getItem('characters');
         if (storedCharacters) {
-          const parsedCharacters = JSON.parse(storedCharacters);
+          const parsedCharacters = (JSON.parse(storedCharacters) as Character[]).map((c) => ({ ...c, isGenerating: false }));
           setCharacters(parsedCharacters);
           try {
             (parsedCharacters as Character[]).forEach((c) => {
@@ -49,6 +49,30 @@ export default function GenerateCharacters() {
               }
             });
           } catch {}
+          // Refresh from server in background to hydrate images/text reliably
+          const projectId = sessionStorage.getItem('currentProjectId');
+          if (projectId) {
+            fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' })
+              .then(r => r.json())
+              .then((j) => {
+                if (Array.isArray(j.characters)) {
+                  const server = j.characters as any[];
+                  const merged = parsedCharacters.map((local) => {
+                    const remote = server.find((s) => (s.name || '').toLowerCase() === (local.name || '').toLowerCase()) || server.find((s) => s.id === (local as any).id);
+                    const url = remote?.image_path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/webtoon/${remote.image_path}` : local.imageDataUrl;
+                    return {
+                      ...local,
+                      description: local.description || remote?.description || '',
+                      artStyle: local.artStyle || remote?.art_style || local.artStyle,
+                      imageDataUrl: url,
+                      isGenerating: false,
+                    } as Character;
+                  });
+                  setCharacters(merged);
+                  try { sessionStorage.setItem('characters', JSON.stringify(merged)); } catch {}
+                }
+              }).catch(() => {});
+          }
         } else {
           const projectId = sessionStorage.getItem('currentProjectId');
           if (projectId) {
@@ -56,7 +80,7 @@ export default function GenerateCharacters() {
               .then(r => r.json())
               .then((j) => {
                 if (Array.isArray(j.characters) && j.characters.length > 0) {
-                  const mapped = j.characters.map((c: any, idx: number) => ({ id: c.id || `character${idx+1}`, name: c.name || `Character ${idx+1}`, description: c.description || '', artStyle: c.art_style || '', imageDataUrl: c.image_path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/webtoon/${c.image_path}` : undefined }));
+                  const mapped = j.characters.map((c: any, idx: number) => ({ id: c.id || `character${idx+1}`, name: c.name || `Character ${idx+1}`, description: c.description || '', artStyle: c.art_style || '', imageDataUrl: c.image_path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/webtoon/${c.image_path}` : undefined, isGenerating: false }));
                   setCharacters(mapped);
                   sessionStorage.setItem('characters', JSON.stringify(mapped));
                 } else {
@@ -270,7 +294,7 @@ export default function GenerateCharacters() {
                     onClick={() => generateImage(character.id)}
                     className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white hover:opacity-95"
                     disabled={
-                      character.isGenerating ||
+                      !!character.isGenerating ||
                       !(character.description || '').trim() ||
                       !((character.artStyle || '').trim())
                     }
