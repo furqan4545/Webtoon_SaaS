@@ -552,7 +552,12 @@ export default function WebtoonBuilder() {
                       {activeBadge === 'edit' ? 'Edit: On' : 'Edit'}
                     </button>
                   </div>
-                  <form onSubmit={handleSend} className="flex items-start">
+                  <form onSubmit={handleSend} className="flex items-start" onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSend(e);
+                    }
+                  }}>
                     <div className="relative flex-1">
                       <textarea
                         id="chat-input"
@@ -610,6 +615,11 @@ export default function WebtoonBuilder() {
                 if (!allImagesReady || isPublishing) return;
                 setIsPublishing(true);
                 try {
+                  // Update project status to published first
+                  try {
+                    const projectId = sessionStorage.getItem('currentProjectId');
+                    if (projectId) await fetch('/api/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId }) });
+                  } catch {}
                   const dataUrls = scenes.map(s => s.imageDataUrl).filter(Boolean) as string[];
 
                   // Load all images
