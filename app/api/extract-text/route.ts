@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // .pdf
-    if (type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    if (type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf')) {
       try {
         const pdfParse = (await import('pdf-parse')).default as any;
         const data = await pdfParse(buffer);
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     // .docx
     if (
       type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      file.name.toLowerCase().endsWith('.docx')
+      file.name?.toLowerCase().endsWith('.docx')
     ) {
       try {
         const mammoth = await import('mammoth');

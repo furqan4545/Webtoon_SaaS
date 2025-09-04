@@ -18,6 +18,8 @@ export default function ImportStory() {
   const supabase = createBrowserSupabase();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const uploadRef = useRef<HTMLInputElement | null>(null);
 
   // Load story from DB for the current project only
   useEffect(() => {
@@ -91,33 +93,50 @@ export default function ImportStory() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
-                    onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      setUploading(true);
-                      try {
-                        const fd = new FormData();
-                        fd.append('file', f);
-                        const res = await fetch('/api/extract-text', { method: 'POST', body: fd });
-                        const j = await res.json();
-                        if (res.ok && typeof j?.text === 'string') {
-                          setStoryText(j.text);
-                          // trigger debounced save
-                          handleChange(j.text);
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm text-white/70">Upload PDF, Word (.docx), or TXT to extract text</div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      ref={uploadRef}
+                      type="file"
+                      hidden
+                      accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                      onChange={async (e) => {
+                        const input = e.currentTarget as HTMLInputElement | null;
+                        const f = input?.files?.[0];
+                        if (!f) return;
+                        setUploading(true);
+                        setExtractError(null);
+                        try {
+                          const fd = new FormData();
+                          fd.append('file', f);
+                          const res = await fetch('/api/extract-text', { method: 'POST', body: fd });
+                          const j = await res.json();
+                          if (!res.ok) {
+                            setExtractError(j?.error || 'Failed to extract text');
+                          } else if (typeof j?.text === 'string') {
+                            setStoryText(j.text);
+                            handleChange(j.text);
+                          }
+                        } catch (err) {
+                          setExtractError('Failed to extract text');
+                        } finally {
+                          setUploading(false);
+                          if (input) input.value = '';
                         }
-                      } finally {
-                        setUploading(false);
-                        e.currentTarget.value = '';
-                      }
-                    }}
-                    className="text-sm"
-                  />
-                  {uploading && <span className="text-xs text-white/60">Extracting text...</span>}
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => uploadRef.current?.click()}
+                      className="bg-white text-black hover:opacity-90"
+                      disabled={uploading}
+                    >
+                      {uploading ? 'Extracting…' : 'Upload File'}
+                    </Button>
+                  </div>
                 </div>
+                {extractError && <div className="text-xs text-red-400">{extractError}</div>}
                 <Textarea
                   placeholder="Paste your story here...
 
