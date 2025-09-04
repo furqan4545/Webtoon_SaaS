@@ -93,4 +93,27 @@ alter table if exists public.profiles add column if not exists avatar_url text;
 alter table if exists public.projects add column if not exists art_style text;
 alter table if exists public.characters add column if not exists art_style text;
 
+-- Storage RLS policies for bucket 'webtoon'
+-- Allow authenticated users to manage files under users/{uid}/...
+drop policy if exists "webtoon_select" on storage.objects;
+create policy "webtoon_select"
+  on storage.objects for select to authenticated
+  using (bucket_id = 'webtoon' and (name like ('users/' || auth.uid() || '/%')));
+
+drop policy if exists "webtoon_insert" on storage.objects;
+create policy "webtoon_insert"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'webtoon' and (name like ('users/' || auth.uid() || '/%')));
+
+drop policy if exists "webtoon_update" on storage.objects;
+create policy "webtoon_update"
+  on storage.objects for update to authenticated
+  using (bucket_id = 'webtoon' and (name like ('users/' || auth.uid() || '/%')))
+  with check (bucket_id = 'webtoon' and (name like ('users/' || auth.uid() || '/%')));
+
+drop policy if exists "webtoon_delete" on storage.objects;
+create policy "webtoon_delete"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'webtoon' and (name like ('users/' || auth.uid() || '/%')));
+
 

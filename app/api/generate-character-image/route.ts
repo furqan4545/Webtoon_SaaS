@@ -97,10 +97,16 @@ export async function POST(request: NextRequest) {
     const path = `users/${user.id}/projects/${projectId || 'default'}/characters/${(name || 'character').replace(/\s+/g, '_')}_${Date.now()}.png`;
     const { data: uploaded, error: upErr } = await supabase.storage.from('webtoon').upload(path, buffer, {
       contentType: mimeType,
-      upsert: true,
+      upsert: false,
     });
     if (upErr) {
+      // If a file with the same name exists (unlikely due to timestamp), fall back to a unique name
       console.error('storage upload error', upErr);
+      const altPath = `users/${user.id}/projects/${projectId || 'default'}/characters/${(name || 'character').replace(/\s+/g, '_')}_${Date.now()}_${Math.floor(Math.random()*1000)}.png`;
+      const retry = await supabase.storage.from('webtoon').upload(altPath, buffer, { contentType: mimeType, upsert: false });
+      if (!retry.error) {
+        return NextResponse.json({ success: true, image: dataUrl, path: retry.data?.path || altPath });
+      }
     }
     if (projectId) {
       const now = new Date().toISOString();
