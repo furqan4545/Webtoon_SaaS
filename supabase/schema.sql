@@ -13,7 +13,8 @@ create table if not exists public.profiles (
   updated_at timestamptz default now()
 );
 alter table public.profiles enable row level security;
-create policy if not exists "profiles_self_access"
+drop policy if exists "profiles_self_access" on public.profiles;
+create policy "profiles_self_access"
   on public.profiles for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
@@ -30,7 +31,8 @@ create table if not exists public.projects (
 );
 create index if not exists projects_user_id_idx on public.projects(user_id);
 alter table public.projects enable row level security;
-create policy if not exists "projects_self_access"
+drop policy if exists "projects_self_access" on public.projects;
+create policy "projects_self_access"
   on public.projects for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
@@ -48,7 +50,8 @@ create table if not exists public.characters (
 );
 create index if not exists characters_project_id_idx on public.characters(project_id);
 alter table public.characters enable row level security;
-create policy if not exists "characters_self_access"
+drop policy if exists "characters_self_access" on public.characters;
+create policy "characters_self_access"
   on public.characters for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
@@ -68,7 +71,8 @@ create table if not exists public.scenes (
 );
 create index if not exists scenes_project_id_idx on public.scenes(project_id);
 alter table public.scenes enable row level security;
-create policy if not exists "scenes_self_access"
+drop policy if exists "scenes_self_access" on public.scenes;
+create policy "scenes_self_access"
   on public.scenes for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
