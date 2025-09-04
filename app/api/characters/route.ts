@@ -30,10 +30,10 @@ export async function POST(request: NextRequest) {
     project_id: projectId,
     user_id: user.id,
     name,
-    description: description ?? null,
-    art_style: artStyle ?? null,
     updated_at: now,
   };
+  if (description !== undefined) upsertData.description = description;
+  if (artStyle !== undefined) upsertData.art_style = artStyle;
   if (imagePath) upsertData.image_path = imagePath;
   const { data, error } = await supabase
     .from('characters')

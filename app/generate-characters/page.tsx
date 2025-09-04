@@ -56,7 +56,7 @@ export default function GenerateCharacters() {
               .then(r => r.json())
               .then((j) => {
                 if (Array.isArray(j.characters) && j.characters.length > 0) {
-                  const mapped = j.characters.map((c: any, idx: number) => ({ id: c.id || `character${idx+1}`, name: c.name || `Character ${idx+1}`, description: c.description || '', artStyle: c.art_style || '', imageDataUrl: undefined }));
+                  const mapped = j.characters.map((c: any, idx: number) => ({ id: c.id || `character${idx+1}`, name: c.name || `Character ${idx+1}`, description: c.description || '', artStyle: c.art_style || '', imageDataUrl: c.image_path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/webtoon/${c.image_path}` : undefined }));
                   setCharacters(mapped);
                   sessionStorage.setItem('characters', JSON.stringify(mapped));
                 } else {
