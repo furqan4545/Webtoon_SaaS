@@ -72,25 +72,7 @@ export async function PATCH(request: NextRequest) {
     .single();
 
   const now = new Date().toISOString();
-  if (!existing) {
-    // Create if missing
-    const { data, error } = await supabase
-      .from('characters')
-      .insert({
-        project_id: projectId,
-        user_id: user.id,
-        name,
-        description: description ?? null,
-        art_style: artStyle ?? null,
-        image_path: imagePath ?? null,
-        created_at: now,
-        updated_at: now,
-      })
-      .select('*')
-      .single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ character: data });
-  }
+  if (!existing) return NextResponse.json({ error: 'Character not found' }, { status: 404 });
 
   // Delete old storage file if replacing image
   if (imagePath && existing.image_path && existing.image_path !== imagePath) {

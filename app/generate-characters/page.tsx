@@ -41,75 +41,42 @@ export default function GenerateCharacters() {
   useEffect(() => {
     const loadCharacters = () => {
       try {
-        const storedCharacters = sessionStorage.getItem('characters');
-        if (storedCharacters) {
-          const parsedCharacters = (JSON.parse(storedCharacters) as Character[]).map((c) => ({ ...c, isGenerating: false }));
-          setCharacters(parsedCharacters);
-          try {
-            (parsedCharacters as Character[]).forEach((c) => {
-              if ((c.description && c.description.trim()) || (c.artStyle && c.artStyle.trim())) {
-                persistCharacter(c);
-              }
-            });
-          } catch {}
-          // Refresh from server in background to hydrate images/text reliably
-          const projectId = sessionStorage.getItem('currentProjectId');
-          if (projectId) {
-            fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' })
-              .then(r => r.json())
-              .then(async (j) => {
-                if (Array.isArray(j.characters)) {
-                  const server = j.characters as any[];
-                  const merged = await Promise.all(parsedCharacters.map(async (local) => {
-                    const remote = server.find((s) => (s.name || '').toLowerCase() === (local.name || '').toLowerCase()) || server.find((s) => s.id === (local as any).id);
-                    let url = local.imageDataUrl;
-                    if (remote?.image_path) {
-                      const { data: signed } = await supabase.storage.from('webtoon').createSignedUrl(remote.image_path, 60 * 60);
-                      url = signed?.signedUrl || url;
-                    }
-                    return {
-                      ...local,
-                      description: local.description || remote?.description || '',
-                      artStyle: local.artStyle || remote?.art_style || local.artStyle,
-                      imageDataUrl: url,
-                      isGenerating: false,
-                    } as Character;
-                  }));
-                  setCharacters(merged);
-                  try { sessionStorage.setItem('characters', JSON.stringify(merged)); } catch {}
-                }
-              }).catch(() => {});
-          }
-        } else {
-          const projectId = sessionStorage.getItem('currentProjectId');
-          if (projectId) {
-            fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' })
-              .then(r => r.json())
-              .then(async (j) => {
-                if (Array.isArray(j.characters) && j.characters.length > 0) {
-                  const mapped = await Promise.all(j.characters.map(async (c: any, idx: number) => {
-                    let url: string | undefined = undefined;
-                    if (c.image_path) {
-                      const { data: signed } = await supabase.storage.from('webtoon').createSignedUrl(c.image_path, 60 * 60);
-                      url = signed?.signedUrl;
-                    }
-                    return { id: c.id || `character${idx+1}`, name: c.name || `Character ${idx+1}`, description: c.description || '', artStyle: c.art_style || '', imageDataUrl: url, isGenerating: false } as Character;
-                  }));
-                  setCharacters(mapped);
-                  sessionStorage.setItem('characters', JSON.stringify(mapped));
-                } else {
-                  toast.error("No characters found", { description: "Please go back and analyze your story first." });
-                  router.push("/import-story");
-                }
-              })
-              .catch(() => {
+        const pid = sessionStorage.getItem('currentProjectId');
+        if (pid) {
+          // Fetch characters from DB
+          fetch(`/api/characters?projectId=${encodeURIComponent(pid)}`, { cache: 'no-store' })
+            .then(r => r.json())
+            .then(async (j) => {
+              const art = await (async () => {
+                try {
+                  const res = await fetch(`/api/art-style?projectId=${encodeURIComponent(pid)}`, { cache: 'no-store' });
+                  const json = await res.json();
+                  return (json?.artStyle?.description as string | undefined) || '';
+                } catch { return ''; }
+              })();
+              const list = Array.isArray(j.characters) ? j.characters : [];
+              if (list.length === 0) {
                 toast.error("No characters found", { description: "Please go back and analyze your story first." });
                 router.push("/import-story");
-              });
-          } else {
-            toast.error("No characters found", { description: "Please go back and analyze your story first." });
-            router.push("/import-story");
-          }
+                return;
+              }
+              const mapped = await Promise.all(list.map(async (c: any, idx: number) => {
+                let url: string | undefined = undefined;
+                if (c.image_path) {
+                  const { data: signed } = await supabase.storage.from('webtoon').createSignedUrl(c.image_path, 60 * 60);
+                  url = signed?.signedUrl;
+                }
+                return { id: c.id || `character${idx+1}`, name: c.name || `Character ${idx+1}`, description: c.description || '', artStyle: art || c.art_style || '', imageDataUrl: url, isGenerating: false } as Character;
+              }));
+              setCharacters(mapped);
+            })
+            .catch(() => {
+              toast.error("Failed to load characters", { description: "Please try again." });
+              router.push("/import-story");
+            });
+        } else {
+          toast.error("No project selected", { description: "Please start from the dashboard." });
+          router.push("/import-story");
         }
       } catch (error) {
         console.error('Error loading characters:', error);
@@ -131,10 +98,6 @@ export default function GenerateCharacters() {
         char.id === id ? { ...char, description } : char
       )
     );
-    try {
-      const updated = characters.map(c => c.id === id ? { ...c, description } : c);
-      sessionStorage.setItem('characters', JSON.stringify(updated));
-    } catch {}
     const current = characters.find(c => c.id === id);
     persistCharacter({ ...(current as Character), description });
   };
@@ -168,10 +131,6 @@ export default function GenerateCharacters() {
         throw new Error(data?.error || 'Failed to generate image');
       }
       setCharacters(prev => prev.map(c => c.id === id ? { ...c, imageDataUrl: data.image, isGenerating: false, hasGenerated: true } : c));
-      try {
-        const updated = characters.map(c => c.id === id ? { ...c, imageDataUrl: data.image, isGenerating: false, hasGenerated: true } : c);
-        sessionStorage.setItem('characters', JSON.stringify(updated));
-      } catch {}
       if (data?.path) {
         const projectId = sessionStorage.getItem('currentProjectId');
         const current = characters.find(c => c.id === id);
@@ -280,30 +239,10 @@ export default function GenerateCharacters() {
                     className="h-24 bg-white/5 border-white/10 text-white placeholder:text-white/50 resize-none"
                   />
                 </div>
-                <details className="bg-white/5 border border-white/10 rounded-md">
-                  <summary className="cursor-pointer select-none px-3 py-2 text-sm text-white/80 flex items-center justify-between">
-                    Art Style
-                    <span className="ml-2 text-white/50">(click to edit)</span>
-                  </summary>
-                  <div className="p-3 pt-2">
-                    <Textarea
-                      placeholder="Override art style for this character (optional)"
-                      value={character.artStyle || ''}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        setCharacters(prev => prev.map(c => c.id === character.id ? { ...c, artStyle: value } : c));
-                        try {
-                          const updated = characters.map(c => c.id === character.id ? { ...c, artStyle: value } : c);
-                          sessionStorage.setItem('characters', JSON.stringify(updated));
-                        } catch {}
-                        const current = characters.find(c => c.id === character.id);
-                        persistCharacter({ ...(current as Character), artStyle: value });
-                      }}
-                      className="h-20 bg-white/5 border-white/10 text-white placeholder:text-white/50 resize-none"
-                    />
-                    <div className="text-xs text-white/60 mt-1">{(character.artStyle || '').length} characters</div>
-                  </div>
-                </details>
+                <div className="bg-white/5 border border-white/10 rounded-md p-3">
+                  <div className="text-sm text-white/80 mb-1">Art Style</div>
+                  <div className="text-sm text-white/70 whitespace-pre-wrap">{character.artStyle || ''}</div>
+                </div>
                 <div className="flex gap-2">
                   <Button
                     onClick={() => generateImage(character.id)}

@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     if (projectId) {
       const now = new Date().toISOString();
       const newPath = uploaded?.path || path;
-      // Update if exists, else insert; also remove old image if replacing
+      // Update only if exists; remove old image if replacing. Do NOT insert new rows here.
       const { data: existing } = await supabase
         .from('characters')
         .select('id,image_path')
@@ -136,16 +136,7 @@ export async function POST(request: NextRequest) {
           updated_at: now,
         }).eq('id', existing.id);
       } else {
-        await supabase.from('characters').insert({
-          project_id: projectId,
-          user_id: user.id,
-          name: name || 'Character',
-          description,
-          art_style: artStyle || null,
-          image_path: newPath,
-          created_at: now,
-          updated_at: now,
-        });
+        return NextResponse.json({ error: 'Character not found to update image' }, { status: 404 });
       }
       await supabase.from('projects').update({ updated_at: now }).eq('id', projectId).eq('user_id', user.id);
     }
