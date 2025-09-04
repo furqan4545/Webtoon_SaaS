@@ -34,6 +34,7 @@ export default function GenerateCharacters() {
     const body: any = { projectId, name };
     if (c.description !== undefined) body.description = c.description;
     if (c.artStyle !== undefined) body.artStyle = c.artStyle;
+    // Create-only; if exists the API returns existing without changing
     fetch('/api/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
   };
 
@@ -175,7 +176,8 @@ export default function GenerateCharacters() {
         const projectId = sessionStorage.getItem('currentProjectId');
         const current = characters.find(c => c.id === id);
         const name = current?.name || 'Character';
-        fetch('/api/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, name, imagePath: data.path }) }).catch(() => {});
+        // Use PATCH to replace existing image and delete old storage object
+        fetch('/api/characters', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, name, imagePath: data.path }) }).catch(() => {});
       }
     } catch (err) {
       console.error('Image generation error:', err);

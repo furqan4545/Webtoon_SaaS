@@ -59,8 +59,20 @@ alter table public.characters enable row level security;
 drop policy if exists "characters_self_access" on public.characters;
 create policy "characters_self_access"
   on public.characters for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.projects p
+      where p.id = project_id and p.user_id = auth.uid()
+    )
+  )
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.projects p
+      where p.id = project_id and p.user_id = auth.uid()
+    )
+  );
 
 -- SCENES
 create table if not exists public.scenes (

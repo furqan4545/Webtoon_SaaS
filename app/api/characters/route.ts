@@ -26,18 +26,86 @@ export async function POST(request: NextRequest) {
   const { projectId, name, description, artStyle, imagePath } = body || {};
   if (!projectId || !name) return NextResponse.json({ error: 'projectId and name required' }, { status: 400 });
   const now = new Date().toISOString();
-  const upsertData: any = {
+  // Create-only: if exists, return it unchanged
+  const { data: existing } = await supabase
+    .from('characters')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('user_id', user.id)
+    .eq('name', name)
+    .single();
+  if (existing) return NextResponse.json({ character: existing });
+  const insertData: any = {
     project_id: projectId,
     user_id: user.id,
     name,
+    description: description ?? null,
+    art_style: artStyle ?? null,
+    image_path: imagePath ?? null,
+    created_at: now,
     updated_at: now,
   };
-  if (description !== undefined) upsertData.description = description;
-  if (artStyle !== undefined) upsertData.art_style = artStyle;
-  if (imagePath) upsertData.image_path = imagePath;
   const { data, error } = await supabase
     .from('characters')
-    .upsert(upsertData, { onConflict: 'project_id,name' })
+    .insert(insertData)
+    .select('*')
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ character: data });
+}
+
+export async function PATCH(request: NextRequest) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const body = await request.json();
+  const { projectId, name, description, artStyle, imagePath } = body || {};
+  if (!projectId || !name) return NextResponse.json({ error: 'projectId and name required' }, { status: 400 });
+
+  // Find existing row
+  const { data: existing } = await supabase
+    .from('characters')
+    .select('id,image_path')
+    .eq('project_id', projectId)
+    .eq('user_id', user.id)
+    .eq('name', name)
+    .single();
+
+  const now = new Date().toISOString();
+  if (!existing) {
+    // Create if missing
+    const { data, error } = await supabase
+      .from('characters')
+      .insert({
+        project_id: projectId,
+        user_id: user.id,
+        name,
+        description: description ?? null,
+        art_style: artStyle ?? null,
+        image_path: imagePath ?? null,
+        created_at: now,
+        updated_at: now,
+      })
+      .select('*')
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ character: data });
+  }
+
+  // Delete old storage file if replacing image
+  if (imagePath && existing.image_path && existing.image_path !== imagePath) {
+    try { await supabase.storage.from('webtoon').remove([existing.image_path]); } catch {}
+  }
+
+  const updates: any = { updated_at: now };
+  if (description !== undefined) updates.description = description;
+  if (artStyle !== undefined) updates.art_style = artStyle;
+  if (imagePath !== undefined) updates.image_path = imagePath;
+
+  const { data, error } = await supabase
+    .from('characters')
+    .update(updates)
+    .eq('id', existing.id)
     .select('*')
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
