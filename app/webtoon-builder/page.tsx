@@ -620,16 +620,24 @@ export default function WebtoonBuilder() {
                     const projectId = sessionStorage.getItem('currentProjectId');
                     if (projectId) await fetch('/api/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId }) });
                   } catch {}
-                  const dataUrls = scenes.map(s => s.imageDataUrl).filter(Boolean) as string[];
+                  const srcs = scenes.map(s => s.imageDataUrl).filter(Boolean) as string[];
 
-                  // Load all images
+                  // Convert all sources to same-origin blob URLs to avoid canvas tainting
+                  const toBlobUrl = async (src: string): Promise<string> => {
+                    const resp = await fetch(src);
+                    const blob = await resp.blob();
+                    return URL.createObjectURL(blob);
+                  };
+                  const blobUrls = await Promise.all(srcs.map(toBlobUrl));
+
+                  // Load all images from blob URLs
                   const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
                     const img = new Image();
                     img.onload = () => resolve(img);
                     img.onerror = reject;
                     img.src = src;
                   });
-                  const images = await Promise.all(dataUrls.map(loadImage));
+                  const images = await Promise.all(blobUrls.map(loadImage));
 
                   // Layout params (match preview vibe): 24px vertical gap and 24px outer padding
                   const panelGap = 24; // px
@@ -669,6 +677,8 @@ export default function WebtoonBuilder() {
                   a.click();
                   a.remove();
                   URL.revokeObjectURL(url);
+                  // Cleanup blob URLs used for sources
+                  blobUrls.forEach((u) => URL.revokeObjectURL(u));
                 } catch (e) {
                   console.error('Publish webtoon failed', e);
                 } finally {
