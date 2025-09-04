@@ -28,15 +28,7 @@ export default function GenerateCharacters() {
   const projectId = typeof window !== 'undefined' ? sessionStorage.getItem('currentProjectId') || undefined : undefined;
   const supabase = createBrowserSupabase();
 
-  const persistCharacter = (c: Character) => {
-    if (!projectId) return;
-    const name = c.name || 'Character';
-    const body: any = { projectId, name };
-    if (c.description !== undefined) body.description = c.description;
-    if (c.artStyle !== undefined) body.artStyle = c.artStyle;
-    // Create-only; if exists the API returns existing without changing
-    fetch('/api/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
-  };
+  // No auto-persist on keystrokes; characters are created during analyzing step
 
   useEffect(() => {
     const loadCharacters = () => {
@@ -98,8 +90,7 @@ export default function GenerateCharacters() {
         char.id === id ? { ...char, description } : char
       )
     );
-    const current = characters.find(c => c.id === id);
-    persistCharacter({ ...(current as Character), description });
+    // Intentionally do not persist on every keystroke
   };
 
   const removeCharacter = (id: string) => {
@@ -157,10 +148,7 @@ export default function GenerateCharacters() {
       const dataUrl = typeof reader.result === 'string' ? reader.result : '';
       if (!dataUrl) return;
       setCharacters(prev => prev.map(c => c.id === id ? { ...c, imageDataUrl: dataUrl, hasGenerated: true, isGenerating: false } : c));
-      try {
-        const updated = characters.map(c => c.id === id ? { ...c, imageDataUrl: dataUrl, hasGenerated: true, isGenerating: false } : c);
-        sessionStorage.setItem('characters', JSON.stringify(updated));
-      } catch {}
+      // No local/session storage writes
     };
     reader.readAsDataURL(file);
   };
@@ -169,20 +157,10 @@ export default function GenerateCharacters() {
 
   const handleContinue = () => {
     if (!allImagesReady) return;
-    // Persist for builder if needed later
-    sessionStorage.setItem('characters', JSON.stringify(characters));
     window.location.href = '/webtoon-builder';
   };
 
-  // read artStyle from session storage to prefill per character
-  useEffect(() => {
-    try {
-      const art = sessionStorage.getItem('artStyle') || '';
-      if (art) {
-        setCharacters(prev => prev.map(c => ({ ...c, artStyle: c.artStyle || art })));
-      }
-    } catch {}
-  }, []);
+  // No session/local storage side-effects
 
   if (loading) {
     return (
