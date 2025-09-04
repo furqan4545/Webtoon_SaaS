@@ -40,18 +40,21 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
     setDirty(false);
     setGenerating(false);
     setPreviewImages({});
-    // Load characters from sessionStorage on open
+    // Load characters from DB on open
     if (open) {
-      try {
-        const raw = sessionStorage.getItem('characters') || '[]';
-        const list = JSON.parse(raw) as Array<{ id: string; name: string; description: string; imageDataUrl?: string }>;
-        const minimal = list.map(c => ({ id: c.id, name: c.name, description: c.description || '' }));
-        setCharacterList(minimal);
-      } catch {
-        setCharacterList([]);
-      }
+      (async () => {
+        try {
+          const projectId = typeof window !== 'undefined' ? sessionStorage.getItem('currentProjectId') : null;
+          if (!projectId) { setCharacterList([]); return; }
+          const res = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+          const json = await res.json();
+          const list = Array.isArray(json.characters) ? json.characters : [];
+          const minimal = list.map((c: any) => ({ id: c.id, name: c.name, description: c.description || '' }));
+          setCharacterList(minimal);
+        } catch { setCharacterList([]); }
+      })();
     }
-  }, [open]);
+  }, [open, initialStyle, presetList]);
 
   useEffect(() => {
     const base = initialStyle || presetList[0];
@@ -98,14 +101,8 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
   };
 
   const saveNewImagesAsReferences = () => {
-    try {
-      const raw = sessionStorage.getItem('characters') || '[]';
-      const list = JSON.parse(raw) as Array<{ id: string; name: string; description: string; imageDataUrl?: string }>;
-      const updated = list.map(c => (previewImages[c.id] ? { ...c, imageDataUrl: previewImages[c.id] as string } : c));
-      sessionStorage.setItem('characters', JSON.stringify(updated));
-      onSave?.(text.trim());
-      setOpen(false);
-    } catch {}
+    onSave?.(text.trim());
+    setOpen(false);
   };
 
   return (
