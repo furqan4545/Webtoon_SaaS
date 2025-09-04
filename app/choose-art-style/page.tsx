@@ -64,8 +64,23 @@ export default function ChooseArtStyle() {
       if (user && projectId) {
         // Save to project
         await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, art_style: text }) });
-        // Optional: seed characters table with style reference (no name/desc yet)
-        // We'll attach art_style to generated characters later as well.
+        // If characters already exist for this project, skip generation and go straight to editor
+        try {
+          const res = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+          const json = await res.json();
+          if (Array.isArray(json.characters) && json.characters.length > 0) {
+            const mapped = json.characters.map((c: any, idx: number) => ({
+              id: c.id || `character${idx+1}`,
+              name: c.name || `Character ${idx+1}`,
+              description: c.description || '',
+              artStyle: c.art_style || text,
+              imageDataUrl: undefined,
+            }));
+            try { sessionStorage.setItem('characters', JSON.stringify(mapped)); } catch {}
+            router.push('/generate-characters');
+            return;
+          }
+        } catch {}
       }
     } catch {}
     router.push("/analyzing-story");
