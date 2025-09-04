@@ -117,6 +117,49 @@ export async function POST(request: NextRequest) {
             updated_at: now,
           }, { onConflict: 'project_id,idx' });
           await supabase.from('projects').update({ updated_at: now }).eq('id', projectId).eq('user_id', user.id);
+
+          // Also persist into generated_scene_images tied to generated_scenes (no upsert; update if exists else insert)
+          try {
+            const { data: genScene } = await supabase
+              .from('generated_scenes')
+              .select('id')
+              .eq('project_id', projectId)
+              .eq('user_id', user.id)
+              .eq('scene_no', Number(sceneIndex))
+              .single();
+            if (genScene?.id) {
+              const newPath = uploaded?.path || path;
+              const { data: existing } = await supabase
+                .from('generated_scene_images')
+                .select('id,image_path')
+                .eq('project_id', projectId)
+                .eq('user_id', user.id)
+                .eq('scene_no', Number(sceneIndex))
+                .single();
+              if (existing?.id) {
+                // Remove old storage object if path changed
+                if (existing.image_path && existing.image_path !== newPath) {
+                  try { await supabase.storage.from('webtoon').remove([existing.image_path]); } catch {}
+                }
+                await supabase
+                  .from('generated_scene_images')
+                  .update({ image_path: newPath, updated_at: now })
+                  .eq('id', existing.id);
+              } else {
+                await supabase
+                  .from('generated_scene_images')
+                  .insert({
+                    project_id: projectId,
+                    user_id: user.id,
+                    scene_id: genScene.id,
+                    scene_no: Number(sceneIndex),
+                    image_path: newPath,
+                    created_at: now,
+                    updated_at: now,
+                  });
+              }
+            }
+          } catch {}
         }
 
         // Increment usage
