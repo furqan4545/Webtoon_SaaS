@@ -374,7 +374,26 @@ export default function WebtoonBuilder() {
             <ChevronLeft className="h-4 w-4 mr-1" /> Back
           </Button>
           <h1 className="text-3xl font-bold">Create Your Webtoon</h1>
-          <div className="ml-auto" />
+          <div className="ml-auto">
+            <ChangeArtStyleDialog
+              initialStyle={artStyle || "Webtoon comic"}
+              onSave={async (style) => {
+                setArtStyle(style);
+                try {
+                  const projectId = sessionStorage.getItem('currentProjectId');
+                  if (!projectId) return;
+                  const check = await fetch(`/api/art-style?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+                  const j = await check.json();
+                  if (j?.artStyle) {
+                    await fetch('/api/art-style', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, description: style }) });
+                  } else {
+                    await fetch('/api/art-style', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, description: style }) });
+                  }
+                  await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, art_style: style }) });
+                } catch {}
+              }}
+            />
+          </div>
         </div>
         {loading && (
           <div className="text-white/70">Generating scenes...</div>
