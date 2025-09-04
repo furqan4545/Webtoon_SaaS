@@ -15,8 +15,18 @@ export default function AnalyzingStory() {
     hasRun.current = true;
     const analyzeStory = async () => {
       try {
-        const story = sessionStorage.getItem('story');
-        const artStyle = sessionStorage.getItem('artStyle');
+        const projectId = sessionStorage.getItem('currentProjectId');
+        if (!projectId) {
+          toast.error("No project selected", { description: "Please create or select a project first." });
+          router.push("/dashboard");
+          return;
+        }
+
+        // Load story and style strictly from DB
+        const res = await fetch(`/api/projects?id=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+        const json = await res.json();
+        const story: string | undefined = json?.project?.story;
+        const artStyle: string | undefined = json?.project?.art_style || undefined;
 
         if (!story) {
           toast.error("No story found", {
