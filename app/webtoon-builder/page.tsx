@@ -35,6 +35,28 @@ export default function WebtoonBuilder() {
   const supabase = createBrowserSupabase();
   const [artStyle, setArtStyle] = useState<string>("");
   const [refImages, setRefImages] = useState<Array<{ name: string; dataUrl: string }>>([]);
+
+  const applyGeneratedSceneImages = async (projectId: string) => {
+    try {
+      // Read generated scene images for this project
+      const { data, error } = await supabase
+        .from('generated_scene_images')
+        .select('scene_no,image_path')
+        .eq('project_id', projectId)
+        .order('scene_no', { ascending: true });
+      if (error || !data) return;
+      // Create a map of scene_no -> signed URL
+      const results: Record<number, string | undefined> = {};
+      for (const row of data) {
+        if (!row?.image_path) continue;
+        const signed = await supabase.storage.from('webtoon').createSignedUrl(row.image_path, 60 * 60);
+        const url = signed.data?.signedUrl;
+        if (url) results[Number(row.scene_no)] = url;
+      }
+      // Apply to scenes state
+      setScenes(prev => prev.map((s, i) => ({ ...s, imageDataUrl: results[i + 1] || s.imageDataUrl })));
+    } catch {}
+  };
   const quickActions = [
     "More dramatic",
     "Add dialogue",
@@ -190,6 +212,8 @@ export default function WebtoonBuilder() {
             { role: 'system', text: 'You are currently editing Scene 1' },
             { role: 'assistant', text: `Scene description: ${items[0]?.description || ''}` },
           ]);
+          // Merge in any previously generated images from DB
+          await applyGeneratedSceneImages(projectId);
         } else {
           if (!story) {
             setError('No story found.');
@@ -222,6 +246,7 @@ export default function WebtoonBuilder() {
             const payload = items.map((s, i) => ({ scene_no: i + 1, story_text: s.storyText, scene_description: s.description }));
             await fetch('/api/generated-scenes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, scenes: payload }) });
           } catch {}
+          // No images yet for a new generation; nothing to merge
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Unknown error');
