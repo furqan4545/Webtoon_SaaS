@@ -53,6 +53,7 @@ export async function PATCH(request: NextRequest) {
   if (body?.title) updates.title = String(body.title);
   if (body?.status) updates.status = String(body.status);
   if (body?.story !== undefined) updates.story = String(body.story);
+  if (body?.art_style !== undefined) updates.art_style = String(body.art_style);
   updates.updated_at = new Date().toISOString();
   const { data, error } = await supabase
     .from('projects')

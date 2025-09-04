@@ -54,6 +54,7 @@ create table if not exists public.characters (
   updated_at timestamptz default now()
 );
 create index if not exists characters_project_id_idx on public.characters(project_id);
+create unique index if not exists characters_project_name_key on public.characters(project_id, name);
 alter table public.characters enable row level security;
 drop policy if exists "characters_self_access" on public.characters;
 create policy "characters_self_access"

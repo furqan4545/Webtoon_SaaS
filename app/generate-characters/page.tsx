@@ -33,10 +33,28 @@ export default function GenerateCharacters() {
           const parsedCharacters = JSON.parse(storedCharacters);
           setCharacters(parsedCharacters);
         } else {
-          toast.error("No characters found", {
-            description: "Please go back and analyze your story first."
-          });
-          router.push("/import-story");
+          const projectId = sessionStorage.getItem('currentProjectId');
+          if (projectId) {
+            fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' })
+              .then(r => r.json())
+              .then((j) => {
+                if (Array.isArray(j.characters) && j.characters.length > 0) {
+                  const mapped = j.characters.map((c: any, idx: number) => ({ id: c.id || `character${idx+1}`, name: c.name || `Character ${idx+1}`, description: c.description || '', artStyle: c.art_style || '', imageDataUrl: undefined }));
+                  setCharacters(mapped);
+                  sessionStorage.setItem('characters', JSON.stringify(mapped));
+                } else {
+                  toast.error("No characters found", { description: "Please go back and analyze your story first." });
+                  router.push("/import-story");
+                }
+              })
+              .catch(() => {
+                toast.error("No characters found", { description: "Please go back and analyze your story first." });
+                router.push("/import-story");
+              });
+          } else {
+            toast.error("No characters found", { description: "Please go back and analyze your story first." });
+            router.push("/import-story");
+          }
         }
       } catch (error) {
         console.error('Error loading characters:', error);
@@ -58,6 +76,16 @@ export default function GenerateCharacters() {
         char.id === id ? { ...char, description } : char
       )
     );
+    try {
+      const updated = characters.map(c => c.id === id ? { ...c, description } : c);
+      sessionStorage.setItem('characters', JSON.stringify(updated));
+    } catch {}
+    const projectId = sessionStorage.getItem('currentProjectId');
+    if (projectId) {
+      const current = characters.find(c => c.id === id);
+      const name = current?.name || `Character`;
+      fetch('/api/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, name, description, artStyle: current?.artStyle }) }).catch(() => {});
+    }
   };
 
   const removeCharacter = (id: string) => {
@@ -89,6 +117,16 @@ export default function GenerateCharacters() {
         throw new Error(data?.error || 'Failed to generate image');
       }
       setCharacters(prev => prev.map(c => c.id === id ? { ...c, imageDataUrl: data.image, isGenerating: false, hasGenerated: true } : c));
+      try {
+        const updated = characters.map(c => c.id === id ? { ...c, imageDataUrl: data.image, isGenerating: false, hasGenerated: true } : c);
+        sessionStorage.setItem('characters', JSON.stringify(updated));
+      } catch {}
+      if (data?.path) {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        const current = characters.find(c => c.id === id);
+        const name = current?.name || 'Character';
+        fetch('/api/characters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, name, imagePath: data.path }) }).catch(() => {});
+      }
     } catch (err) {
       console.error('Image generation error:', err);
       toast.error('Image generation failed', { description: err instanceof Error ? err.message : 'Unknown error' });
@@ -108,6 +146,10 @@ export default function GenerateCharacters() {
       const dataUrl = typeof reader.result === 'string' ? reader.result : '';
       if (!dataUrl) return;
       setCharacters(prev => prev.map(c => c.id === id ? { ...c, imageDataUrl: dataUrl, hasGenerated: true, isGenerating: false } : c));
+      try {
+        const updated = characters.map(c => c.id === id ? { ...c, imageDataUrl: dataUrl, hasGenerated: true, isGenerating: false } : c);
+        sessionStorage.setItem('characters', JSON.stringify(updated));
+      } catch {}
     };
     reader.readAsDataURL(file);
   };
