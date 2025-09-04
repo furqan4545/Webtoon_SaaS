@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
     const description: string | undefined = body?.description;
     const name: string | undefined = body?.name;
     const projectId: string | undefined = body?.projectId;
+    const artStyle: string | undefined = body?.artStyle;
 
     const rawKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
     const apiKey = rawKey.replace(/["'“”]/g, "").trim();
@@ -39,11 +40,11 @@ export async function POST(request: NextRequest) {
     }
 
     const systemInstruction = sanitize(
-      `You are generating a consistent WEBTOON character model sheet for production. Render a single, front-facing character with clean line art and flat colors, maintaining stable identity markers so the character remains consistent across scenes. Avoid multiple characters, busy backgrounds, watermarks, or text.`
+      `You are generating a consistent character model sheet for production. Render a single, front-facing character with clean line art and flat colors, maintaining stable identity markers so the character remains consistent across scenes. Avoid multiple characters, busy backgrounds, watermarks, or text.`
     );
 
     const prompt = sanitize(
-      `${systemInstruction}\n\nCharacter name: ${name || "Unnamed"}.\nCharacter description: ${description}.\nDesired style: webtoon, clean outlines, expressive face, readable silhouette, studio sheet white background.`
+      `${systemInstruction}\n\nCharacter name: ${name || "Unnamed"}.\nCharacter description: ${description}.\nDesired art style: ${(artStyle || '').trim() || 'clean outlines, expressive face, readable silhouette'}.\nUse a studio sheet white background.`
     );
 
     // Use the official SDK per docs: https://googleapis.github.io/js-genai/ and npm page
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         name: name || 'Character',
         description,
+        art_style: artStyle || null,
         image_path: uploaded?.path || path,
         created_at: now,
         updated_at: now,

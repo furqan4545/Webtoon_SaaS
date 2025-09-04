@@ -6,7 +6,7 @@ import Header from "../dashboard/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, X, Wand2, Upload, Plus } from "lucide-react";
+import { ArrowLeft, X, Wand2, Upload, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { toast } from "@/hooks/use-toast";
 
@@ -14,6 +14,7 @@ interface Character {
   id: string;
   name: string;
   description: string;
+  artStyle?: string;
   imageDataUrl?: string;
   isGenerating?: boolean;
   hasGenerated?: boolean;
@@ -81,7 +82,7 @@ export default function GenerateCharacters() {
       const res = await fetch('/api/generate-character-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: character.name, description: character.description }),
+        body: JSON.stringify({ name: character.name, description: character.description, artStyle: character.artStyle, projectId: sessionStorage.getItem('currentProjectId') || undefined }),
       });
       const data = await res.json();
       if (!res.ok || !data?.success) {
@@ -119,6 +120,16 @@ export default function GenerateCharacters() {
     sessionStorage.setItem('characters', JSON.stringify(characters));
     window.location.href = '/webtoon-builder';
   };
+
+  // read artStyle from session storage to prefill per character
+  useEffect(() => {
+    try {
+      const art = sessionStorage.getItem('artStyle') || '';
+      if (art) {
+        setCharacters(prev => prev.map(c => ({ ...c, artStyle: c.artStyle || art })));
+      }
+    } catch {}
+  }, []);
 
   if (loading) {
     return (
@@ -175,6 +186,21 @@ export default function GenerateCharacters() {
                     className="h-24 bg-white/5 border-white/10 text-white placeholder:text-white/50 resize-none"
                   />
                 </div>
+                <details className="bg-white/5 border border-white/10 rounded-md">
+                  <summary className="cursor-pointer select-none px-3 py-2 text-sm text-white/80 flex items-center justify-between">
+                    Art Style
+                    <span className="ml-2 text-white/50">(click to edit)</span>
+                  </summary>
+                  <div className="p-3 pt-2">
+                    <Textarea
+                      placeholder="Override art style for this character (optional)"
+                      value={character.artStyle || ''}
+                      onChange={(e) => setCharacters(prev => prev.map(c => c.id === character.id ? { ...c, artStyle: e.target.value } : c))}
+                      className="h-20 bg-white/5 border-white/10 text-white placeholder:text-white/50 resize-none"
+                    />
+                    <div className="text-xs text-white/60 mt-1">{(character.artStyle || '').length} characters</div>
+                  </div>
+                </details>
                 <div className="flex gap-2">
                   <Button
                     onClick={() => generateImage(character.id)}

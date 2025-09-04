@@ -36,7 +36,21 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-30 w-full border-b border-white/10 bg-gradient-to-b from-black/40 to-transparent backdrop-blur">
       {/* top progress bar on navigate */}
-      <div className={`fixed left-0 top-0 h-0.5 w-full bg-gradient-to-r from-fuchsia-500 via-indigo-400 to-fuchsia-500 transition-opacity ${isNavigatingHome ? 'opacity-100 animate-pulse' : 'opacity-0 pointer-events-none'}`} />
+      <style jsx global>{`
+        @keyframes stripe-scan {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(100% + 200px) 0; }
+        }
+      `}</style>
+      <div className={`fixed left-0 top-0 h-0.5 w-full transition-opacity ${isNavigatingHome ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        style={{
+          backgroundImage: 'linear-gradient(90deg, rgba(217,70,239,1) 0%, rgba(99,102,241,1) 50%, rgba(217,70,239,1) 100%), linear-gradient(90deg, rgba(255,255,255,0.0) 0%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0.0) 100%)',
+          backgroundSize: '100% 100%, 200px 100%',
+          backgroundRepeat: 'repeat, no-repeat',
+          backgroundPosition: '0 0, 0 0',
+          animation: isNavigatingHome ? 'stripe-scan 1.2s linear infinite' : undefined,
+        }}
+      />
       <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
         <button
           onClick={() => {
