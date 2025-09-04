@@ -269,7 +269,11 @@ export default function GenerateCharacters() {
                   <Button
                     onClick={() => generateImage(character.id)}
                     className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white hover:opacity-95"
-                    disabled={character.isGenerating}
+                    disabled={
+                      character.isGenerating ||
+                      !(character.description || '').trim() ||
+                      !((character.artStyle || '').trim())
+                    }
                   >
                     {character.isGenerating ? (
                       <>

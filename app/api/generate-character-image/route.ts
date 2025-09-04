@@ -52,9 +52,14 @@ export async function POST(request: NextRequest) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // Quota check
-    const usageRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/usage`, { cache: 'no-store' });
-    const usage = await usageRes.json().catch(() => null);
+    // Quota check (use absolute URL from the incoming request)
+    let usage: any = null;
+    try {
+      const reqUrl = new URL(request.url);
+      const base = `${reqUrl.protocol}//${reqUrl.host}`;
+      const usageRes = await fetch(`${base}/api/usage`, { cache: 'no-store' });
+      usage = await usageRes.json();
+    } catch {}
     if (usage && usage.remaining !== undefined && Number(usage.remaining) <= 0) {
       return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
     }
@@ -111,7 +116,11 @@ export async function POST(request: NextRequest) {
       });
       await supabase.from('projects').update({ updated_at: now }).eq('id', projectId).eq('user_id', user.id);
     }
-    try { await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/usage`, { method: 'POST' }); } catch {}
+    try {
+      const reqUrl = new URL(request.url);
+      const base = `${reqUrl.protocol}//${reqUrl.host}`;
+      await fetch(`${base}/api/usage`, { method: 'POST' });
+    } catch {}
     return NextResponse.json({ success: true, image: dataUrl, path });
   } catch (error: unknown) {
     const err = error as any;
