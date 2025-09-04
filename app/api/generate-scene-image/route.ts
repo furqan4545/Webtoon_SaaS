@@ -32,9 +32,15 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Quota check
-    const usageRes = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/usage`, { cache: 'no-store' });
-    const usage = await usageRes.json().catch(() => null);
+    // Quota check (build absolute base from request)
+    let usage: any = null;
+    try {
+      const reqUrl = new URL(request.url);
+      const base = `${reqUrl.protocol}//${reqUrl.host}`;
+      const cookie = request.headers.get('cookie') || '';
+      const usageRes = await fetch(`${base}/api/usage`, { cache: 'no-store', headers: cookie ? { cookie } : {} });
+      usage = await usageRes.json();
+    } catch {}
     if (usage && usage.remaining !== undefined && Number(usage.remaining) <= 0) {
       return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
     }
@@ -163,7 +169,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Increment usage
-        try { await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/usage`, { method: 'POST' }); } catch {}
+        try {
+          const reqUrl = new URL(request.url);
+          const base = `${reqUrl.protocol}//${reqUrl.host}`;
+          const cookie = request.headers.get('cookie') || '';
+          await fetch(`${base}/api/usage`, { method: 'POST', headers: cookie ? { cookie } : {} });
+        } catch {}
 
         return NextResponse.json({ success: true, image: dataUrl, path }, { headers: { 'Cache-Control': 'no-store' } });
       } catch (err: any) {
