@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, X, Wand2, Upload, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { toast } from "@/hooks/use-toast";
+import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
 
 interface Character {
   id: string;
@@ -25,6 +26,7 @@ export default function GenerateCharacters() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const projectId = typeof window !== 'undefined' ? sessionStorage.getItem('currentProjectId') || undefined : undefined;
+  const supabase = createBrowserSupabase();
 
   const persistCharacter = (c: Character) => {
     if (!projectId) return;
@@ -54,12 +56,16 @@ export default function GenerateCharacters() {
           if (projectId) {
             fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' })
               .then(r => r.json())
-              .then((j) => {
+              .then(async (j) => {
                 if (Array.isArray(j.characters)) {
                   const server = j.characters as any[];
-                  const merged = parsedCharacters.map((local) => {
+                  const merged = await Promise.all(parsedCharacters.map(async (local) => {
                     const remote = server.find((s) => (s.name || '').toLowerCase() === (local.name || '').toLowerCase()) || server.find((s) => s.id === (local as any).id);
-                    const url = remote?.image_path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/webtoon/${remote.image_path}` : local.imageDataUrl;
+                    let url = local.imageDataUrl;
+                    if (remote?.image_path) {
+                      const { data: signed } = await supabase.storage.from('webtoon').createSignedUrl(remote.image_path, 60 * 60);
+                      url = signed?.signedUrl || url;
+                    }
                     return {
                       ...local,
                       description: local.description || remote?.description || '',
@@ -67,7 +73,7 @@ export default function GenerateCharacters() {
                       imageDataUrl: url,
                       isGenerating: false,
                     } as Character;
-                  });
+                  }));
                   setCharacters(merged);
                   try { sessionStorage.setItem('characters', JSON.stringify(merged)); } catch {}
                 }
@@ -78,9 +84,16 @@ export default function GenerateCharacters() {
           if (projectId) {
             fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' })
               .then(r => r.json())
-              .then((j) => {
+              .then(async (j) => {
                 if (Array.isArray(j.characters) && j.characters.length > 0) {
-                  const mapped = j.characters.map((c: any, idx: number) => ({ id: c.id || `character${idx+1}`, name: c.name || `Character ${idx+1}`, description: c.description || '', artStyle: c.art_style || '', imageDataUrl: c.image_path ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/webtoon/${c.image_path}` : undefined, isGenerating: false }));
+                  const mapped = await Promise.all(j.characters.map(async (c: any, idx: number) => {
+                    let url: string | undefined = undefined;
+                    if (c.image_path) {
+                      const { data: signed } = await supabase.storage.from('webtoon').createSignedUrl(c.image_path, 60 * 60);
+                      url = signed?.signedUrl;
+                    }
+                    return { id: c.id || `character${idx+1}`, name: c.name || `Character ${idx+1}`, description: c.description || '', artStyle: c.art_style || '', imageDataUrl: url, isGenerating: false } as Character;
+                  }));
                   setCharacters(mapped);
                   sessionStorage.setItem('characters', JSON.stringify(mapped));
                 } else {
