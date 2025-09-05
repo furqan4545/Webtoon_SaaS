@@ -31,6 +31,7 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
   const [dirty, setDirty] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [previewImages, setPreviewImages] = useState<Record<string, string | null | undefined>>({});
+  const hasAnyPreview = useMemo(() => Object.values(previewImages).some(Boolean), [previewImages]);
   const [characterList, setCharacterList] = useState<Array<{ id: string; name: string; description: string }>>([]);
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
 
@@ -93,6 +94,8 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
         const data = await res.json();
         if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed');
         setPreviewImages((prev) => ({ ...prev, [ch.id]: data.image as string }));
+        // Notify header to refresh credits after each successful generation
+        try { window.dispatchEvent(new Event('credits:refresh')); } catch {}
       } catch (e) {
         setPreviewImages((prev) => ({ ...prev, [ch.id]: null }));
       }
@@ -110,7 +113,17 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
       <DialogTrigger asChild>
         <Button className={buttonClassName || "bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white"}>Change Art Style</Button>
       </DialogTrigger>
-      <DialogContent className="w-[min(92vw,820px)] max-w-[820px] h-[min(90vh,700px)] rounded-xl border-white/15 bg-[#0f0f16] p-6 md:p-7 flex flex-col">
+      <DialogContent className="relative w-[min(92vw,820px)] max-w-[820px] h-[min(90vh,700px)] rounded-xl border-white/15 bg-[#0f0f16] p-6 md:p-7 flex flex-col">
+        {hasAnyPreview && !generating && (
+          <div className="absolute top-4 right-12">
+            <Button
+              onClick={saveNewImagesAsReferences}
+              className="h-9 rounded-full px-5 bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95"
+            >
+              Save
+            </Button>
+          </div>
+        )}
         <DialogHeader>
           <DialogTitle className="text-xl md:text-2xl">Edit Art Style</DialogTitle>
           <DialogDescription>
@@ -181,10 +194,8 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
                   })}
                 </div>
               </div>
-              {Object.values(previewImages).some(Boolean) && !generating && (
-                <div className="flex justify-end pt-1">
-                  <Button onClick={saveNewImagesAsReferences} className="bg-white text-black hover:opacity-90">Save</Button>
-                </div>
+              {false && (
+                <div />
               )}
             </div>
           ) : null}
