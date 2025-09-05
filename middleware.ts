@@ -7,7 +7,8 @@ export async function middleware(request: NextRequest) {
   // Skip session refresh for the most hit routes to reduce duplicate auth calls
   // The corresponding pages already call getUser on the server.
   const { pathname } = request.nextUrl;
-  if (pathname === '/' || pathname === '/dashboard') {
+  // Skip for home, dashboard, and all API routes to avoid extra auth roundtrips
+  if (pathname === '/' || pathname === '/dashboard' || pathname.startsWith('/api/')) {
     return response;
   }
 

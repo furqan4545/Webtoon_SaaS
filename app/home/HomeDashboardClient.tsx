@@ -138,16 +138,23 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
           </div>
           <Button
             className="h-10 px-4 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95"
-            onClick={async () => {
-              // Create a project immediately then go to dashboard
-              const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Untitled Webtoon' }) });
-              if (res.ok) {
-                const { project } = await res.json();
-                // persist current projectId for downstream pages
-                try { sessionStorage.setItem('currentProjectId', project.id); } catch {}
-                setProjects(prev => [{ id: project.id, title: project.title, status: project.status, chapters: 0, modifiedAt: project.updated_at }, ...prev]);
-              }
+            onClick={() => {
+              // Navigate immediately for snappy UX
               router.push("/dashboard");
+              // Create in background and hydrate sessionStorage for downstream pages
+              (async () => {
+                try {
+                  const res = await fetch('/api/projects', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: 'Untitled Webtoon' }),
+                  });
+                  if (res.ok) {
+                    const { project } = await res.json();
+                    try { sessionStorage.setItem('currentProjectId', project.id); } catch {}
+                  }
+                } catch {}
+              })();
             }}
           >
             + Create New Webtoon
