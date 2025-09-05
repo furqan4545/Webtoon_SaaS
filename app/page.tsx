@@ -8,5 +8,21 @@ export default async function Home() {
   if (!data?.user) {
     redirect("/login");
   }
-  return <HomeDashboardClient />;
+
+  // Server-side fetch to avoid initial client fetch and reduce re-renders
+  const { data: projects, error } = await supabase
+    .from('projects')
+    .select('*')
+    .eq('user_id', data.user.id)
+    .order('updated_at', { ascending: false });
+
+  const initialProjects = (projects || []).map((p: any) => ({
+    id: p.id,
+    title: p.title,
+    status: p.status,
+    chapters: 0,
+    modifiedAt: p.updated_at,
+  }));
+
+  return <HomeDashboardClient initialProjects={initialProjects} />;
 }

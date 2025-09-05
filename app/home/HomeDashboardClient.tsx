@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Header from "../dashboard/Header";
@@ -21,13 +22,19 @@ type Project = {
 
 const supabase = createClient();
 
-export default function HomeDashboardClient() {
+type HomeDashboardClientProps = {
+  initialProjects?: Project[];
+};
+
+export default function HomeDashboardClient({ initialProjects = [] }: HomeDashboardClientProps) {
   const router = useRouter();
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [sortBy, setSortBy] = useState<"modified" | "title">("modified");
   const [statusFilter, setStatusFilter] = useState<"all" | ProjectStatus>("all");
 
+  // If server did not provide projects (edge cases), fallback to client fetch
   useEffect(() => {
+    if (initialProjects.length > 0) return;
     const load = async () => {
       const { data, error } = await supabase.from('projects').select('*').order('updated_at', { ascending: false });
       if (!error && data) {
@@ -41,7 +48,15 @@ export default function HomeDashboardClient() {
       }
     };
     load();
-  }, []);
+  }, [initialProjects.length]);
+
+  // Prefetch dashboard route to speed up transitions from home → dashboard
+  useEffect(() => {
+    try {
+      // @ts-ignore - prefetch is available on app router in newer Next versions
+      router.prefetch && router.prefetch('/dashboard');
+    } catch {}
+  }, [router]);
 
   useEffect(() => {
     // No-op: projects persisted server-side
@@ -112,6 +127,10 @@ export default function HomeDashboardClient() {
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
       <Header />
       <main className="mx-auto max-w-6xl px-4 py-8">
+        {/* Hidden prefetch anchor as a fallback; on some Next versions this helps warm the route */}
+        <Link href="/dashboard" prefetch className="hidden" aria-hidden="true" tabIndex={-1}>
+          {/* prefetch */}
+        </Link>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold">AI Webtoon Creator Dashboard</h1>

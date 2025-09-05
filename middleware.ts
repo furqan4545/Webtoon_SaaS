@@ -3,7 +3,14 @@ import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: request.headers } });
-  
+
+  // Skip session refresh for the most hit routes to reduce duplicate auth calls
+  // The corresponding pages already call getUser on the server.
+  const { pathname } = request.nextUrl;
+  if (pathname === '/' || pathname === '/dashboard') {
+    return response;
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -20,7 +27,7 @@ export async function middleware(request: NextRequest) {
       },
     }
   );
-  
+
   await supabase.auth.getSession();
   return response;
 }
