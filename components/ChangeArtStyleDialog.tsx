@@ -113,9 +113,9 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
       <DialogTrigger asChild>
         <Button className={buttonClassName || "bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white"}>Change Art Style</Button>
       </DialogTrigger>
-      <DialogContent className="relative w-[min(92vw,820px)] max-w-[820px] h-[min(90vh,700px)] rounded-xl border-white/15 bg-[#0f0f16] p-6 md:p-7 flex flex-col">
+      <DialogContent className="w-[min(92vw,820px)] max-w-[820px] h-[min(90vh,700px)] rounded-xl border-white/15 bg-[#0f0f16] p-6 md:p-7 flex flex-col">
         {hasAnyPreview && !generating && (
-          <div className="absolute top-4 right-12">
+          <div className="flex justify-end mb-2">
             <Button
               onClick={saveNewImagesAsReferences}
               className="h-9 rounded-full px-5 bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95"
@@ -194,9 +194,7 @@ export default function ChangeArtStyleDialog({ initialStyle, presets, onSave, bu
                   })}
                 </div>
               </div>
-              {false && (
-                <div />
-              )}
+              
             </div>
           ) : null}
         </div>
