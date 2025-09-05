@@ -22,23 +22,38 @@ export default function AnalyzingStory() {
           return;
         }
 
-        // Load story from DB; art style can use pending value if available for faster start
+        // Load story from DB; in parallel, read characters and stored art style
         const res = await fetch(`/api/projects?id=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
         const json = await res.json();
         const story: string | undefined = json?.project?.story;
+
+        const [charsRes, styleRes] = await Promise.all([
+          fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' }).catch(() => null),
+          fetch(`/api/art-style?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' }).catch(() => null),
+        ]);
+
+        const charsJson = charsRes ? await charsRes.json() : { characters: [] };
+        const styleJson = styleRes ? await styleRes.json() : {};
+        const existingCharacters: any[] = Array.isArray(charsJson?.characters) ? charsJson.characters : [];
+        const storedArtStyle: string | undefined = (styleJson?.artStyle?.description as string | undefined) || (json?.project?.art_style as string | undefined) || undefined;
+
         let artStyle: string | undefined = undefined;
-        try {
-          artStyle = sessionStorage.getItem('pendingArtStyle') || undefined;
-        } catch {}
-        if (!artStyle) {
-          artStyle = json?.project?.art_style || undefined;
-        }
+        try { artStyle = sessionStorage.getItem('pendingArtStyle') || undefined; } catch {}
+        if (!artStyle) { artStyle = storedArtStyle; }
 
         if (!story) {
           toast.error("No story found", {
             description: "Please go back and enter your story."
           });
           router.push("/import-story");
+          return;
+        }
+
+        // If characters already exist and art style has not changed, skip re-analysis
+        const shouldReuseCharacters = existingCharacters.length > 0 && (!artStyle || artStyle === storedArtStyle);
+        if (shouldReuseCharacters) {
+          try { sessionStorage.removeItem('pendingArtStyle'); } catch {}
+          router.push('/generate-characters');
           return;
         }
 
