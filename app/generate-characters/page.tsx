@@ -9,6 +9,7 @@ import { ArrowLeft, X, Wand2, Upload, Plus, ChevronDown, ChevronUp } from "lucid
 import Link from "next/link";
 import { toast } from "@/hooks/use-toast";
 import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
+import { Info } from "lucide-react";
 
 interface Character {
   id: string;
@@ -26,6 +27,7 @@ export default function GenerateCharacters() {
   const router = useRouter();
   const projectId = typeof window !== 'undefined' ? sessionStorage.getItem('currentProjectId') || undefined : undefined;
   const supabase = createBrowserSupabase();
+  const [credits, setCredits] = useState<{ remaining: number; resetsAt?: string } | null>(null);
 
   // No auto-persist on keystrokes; characters are created during analyzing step
 
@@ -81,6 +83,28 @@ export default function GenerateCharacters() {
     };
 
     loadCharacters();
+    // Load credits for UI guard via Supabase profile
+    (async () => {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
+          .single();
+        const plan = prof?.plan || 'free';
+        const now = new Date();
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const monthIsCurrent = prof?.month_start && String(prof.month_start).startsWith(firstOfMonth);
+        const base = Number.isFinite(prof?.monthly_base_limit) ? Number(prof?.monthly_base_limit) : (plan === 'pro' ? 500 : 50);
+        const bonus = monthIsCurrent ? (Number(prof?.monthly_bonus_credits) || 0) : 0;
+        const used = monthIsCurrent ? (Number(prof?.monthly_used) || 0) : 0;
+        const limit = Math.max(0, base + bonus);
+        const remaining = Math.max(0, limit - used);
+        const resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+        setCredits({ remaining, resetsAt });
+      } catch {
+        setCredits(null);
+      }
+    })();
   }, [router]);
 
   const updateCharacterDescription = (id: string, description: string) => {
@@ -222,12 +246,14 @@ export default function GenerateCharacters() {
                 <div className="flex gap-2">
                   <Button
                     onClick={() => generateImage(character.id)}
-                    className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white hover:opacity-95"
+                    className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white hover:opacity-95 disabled:opacity-60 disabled:cursor-not-allowed"
                     disabled={
                       !!character.isGenerating ||
                       !(character.description || '').trim() ||
-                      !((character.artStyle || '').trim())
+                      !((character.artStyle || '').trim()) ||
+                      Boolean(credits && credits.remaining <= 0)
                     }
+                    title={Boolean(credits && credits.remaining <= 0 && credits?.resetsAt) ? `Out of credits. Resets on ${new Date(credits!.resetsAt!).toLocaleDateString()}` : undefined}
                   >
                     {character.isGenerating ? (
                       <>
@@ -237,10 +263,16 @@ export default function GenerateCharacters() {
                     ) : (
                       <>
                         <Wand2 className="h-4 w-4 mr-2" />
-                        {character.hasGenerated ? 'Generate Again' : 'Generate Character'}
+                        {credits && credits.remaining <= 0 ? 'Out of credits' : (character.hasGenerated ? 'Generate Again' : 'Generate Character')}
                       </>
                     )}
                   </Button>
+                  {credits && credits.remaining <= 0 && (
+                    <div className="flex items-center gap-1 text-xs text-white/70">
+                      <Info className="h-3.5 w-3.5" />
+                      <span>Resets on {new Date(credits.resetsAt || '').toLocaleDateString()}</span>
+                    </div>
+                  )}
                   <input
                     id={`file-${character.id}`}
                     type="file"

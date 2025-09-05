@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import ChangeArtStyleDialog from "@/components/ChangeArtStyleDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
+import { Info } from "lucide-react";
 
 interface SceneItem {
   id: string;
@@ -35,6 +36,7 @@ export default function WebtoonBuilder() {
   const [artStyle, setArtStyle] = useState<string>("");
   const [refImages, setRefImages] = useState<Array<{ name: string; dataUrl: string }>>([]);
   const [isFirstLoad, setIsFirstLoad] = useState<boolean>(true);
+  const [credits, setCredits] = useState<{ remaining: number; resetsAt?: string } | null>(null);
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -270,6 +272,31 @@ export default function WebtoonBuilder() {
     run();
   }, []);
 
+  // Load credits for UI guard via Supabase profile
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
+          .single();
+        const plan = (prof as any)?.plan || 'free';
+        const now = new Date();
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const monthIsCurrent = (prof as any)?.month_start && String((prof as any).month_start).startsWith(firstOfMonth);
+        const base = Number.isFinite((prof as any)?.monthly_base_limit) ? Number((prof as any)?.monthly_base_limit) : (plan === 'pro' ? 500 : 50);
+        const bonus = monthIsCurrent ? (Number((prof as any)?.monthly_bonus_credits) || 0) : 0;
+        const used = monthIsCurrent ? (Number((prof as any)?.monthly_used) || 0) : 0;
+        const limit = Math.max(0, base + bonus);
+        const remaining = Math.max(0, limit - used);
+        const resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+        setCredits({ remaining, resetsAt });
+      } catch {
+        setCredits(null);
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     if (!scenes[selectedSceneIndex]) return;
     setChatMessages([
@@ -487,8 +514,9 @@ export default function WebtoonBuilder() {
                       </div>
                       <div className="pt-2">
                         <Button
-                          className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white"
-                          disabled={scene.isGenerating}
+                          className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                          disabled={scene.isGenerating || (credits && credits.remaining <= 0)}
+                          title={credits && credits.remaining <= 0 && credits.resetsAt ? `Out of credits. Resets on ${new Date(credits.resetsAt).toLocaleDateString()}` : undefined}
                           onClick={() => handleGenerateScene(i)}
                         >
                           {scene.isGenerating ? (
@@ -499,10 +527,16 @@ export default function WebtoonBuilder() {
                           ) : (
                             <>
                               <Wand2 className="h-4 w-4 mr-2" />
-                              Generate
+                              {credits && credits.remaining <= 0 ? 'Out of credits' : 'Generate'}
                             </>
                           )}
                         </Button>
+                        {credits && credits.remaining <= 0 && (
+                          <div className="mt-1 flex items-center gap-1 text-xs text-white/70">
+                            <Info className="h-3.5 w-3.5" />
+                            <span>Resets on {new Date(credits.resetsAt || '').toLocaleDateString()}</span>
+                          </div>
+                        )}
                       </div>
                       {scene.imageDataUrl && (
                         <div className="mt-4 flex justify-center">

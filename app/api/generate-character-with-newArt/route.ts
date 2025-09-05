@@ -50,17 +50,22 @@ export async function POST(request: NextRequest) {
     );
     const styleText = sanitize(artStyle || "webtoon, clean outlines, expressive, flat cel shading");
     const prompt = sanitize(`${systemInstruction}\n\nCharacter name: ${name}.\nCharacter description: ${description}.\nDesired style: ${styleText}.`);
-    // Quota check before calling model
-    try {
-      const reqUrl = new URL(request.url);
-      const base = `${reqUrl.protocol}//${reqUrl.host}`;
-      const cookie = request.headers.get('cookie') || '';
-      const usageRes = await fetch(`${base}/api/usage`, { cache: 'no-store', headers: cookie ? { cookie } : {} });
-      const usage = await usageRes.json();
-      if (usage && usage.remaining !== undefined && Number(usage.remaining) <= 0) {
-        return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
-      }
-    } catch {}
+    // Quota pre-check via profiles snapshot (no internal HTTP)
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
+      .eq('user_id', user.id)
+      .single();
+    const base = Number.isFinite(prof?.monthly_base_limit) ? Number(prof?.monthly_base_limit) : (prof?.plan === 'pro' ? 500 : 50);
+    const monthIsCurrent = prof?.month_start && String(prof.month_start).startsWith(firstOfMonth);
+    const bonus = monthIsCurrent ? (Number(prof?.monthly_bonus_credits) || 0) : 0;
+    const used = monthIsCurrent ? (Number(prof?.monthly_used) || 0) : 0;
+    const remaining = Math.max(0, Math.max(0, base + bonus) - used);
+    if (remaining <= 0) {
+      return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
+    }
 
     const response = await ai.models.generateContent({ model, config, contents: [{ role: 'user', parts: [{ text: prompt }] }] });
     const r: any = response as any;
@@ -76,23 +81,20 @@ export async function POST(request: NextRequest) {
     const upload = await supabase.storage.from('webtoon').upload(stablePath, buffer, { contentType: mimeType, upsert: true });
     if (upload.error) return NextResponse.json({ error: upload.error.message || 'Upload failed' }, { status: 500 });
 
-    const now = new Date().toISOString();
+    const nowIso = new Date().toISOString();
     await supabase
       .from('characters')
-      .update({ art_style: artStyle, image_path: stablePath, updated_at: now })
+      .update({ art_style: artStyle, image_path: stablePath, updated_at: nowIso })
       .eq('id', existing.id)
       .eq('user_id', user.id);
     // Update art style tables as requested (no upsert)
-    await supabase.from('art_styles').update({ description: artStyle, updated_at: now }).eq('project_id', projectId).eq('user_id', user.id);
-    await supabase.from('projects').update({ art_style: artStyle, updated_at: now }).eq('id', projectId).eq('user_id', user.id);
+    await supabase.from('art_styles').update({ description: artStyle, updated_at: nowIso }).eq('project_id', projectId).eq('user_id', user.id);
+    await supabase.from('projects').update({ art_style: artStyle, updated_at: nowIso }).eq('id', projectId).eq('user_id', user.id);
 
     const dataUrl = `data:${mimeType};base64,${base64}`;
     // Deduct one credit after successful generation
     try {
-      const reqUrl = new URL(request.url);
-      const base = `${reqUrl.protocol}//${reqUrl.host}`;
-      const cookie = request.headers.get('cookie') || '';
-      await fetch(`${base}/api/usage`, { method: 'POST', headers: cookie ? { cookie } : {} });
+      await supabase.rpc('increment_monthly_usage');
     } catch {}
     return NextResponse.json({ success: true, image: dataUrl, path: stablePath });
   } catch (error: any) {

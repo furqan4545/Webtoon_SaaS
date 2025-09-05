@@ -26,6 +26,7 @@ export default function Header() {
     used: number;
     limit: number;
     remaining: number;
+    resetsAt?: string;
   } | null>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
@@ -43,11 +44,22 @@ export default function Header() {
         } catch {}
         try {
           setIsLoadingUsage(true);
-          const res = await fetch('/api/usage', { method: 'GET' });
-          if (res.ok) {
-            const json = await res.json();
-            setUsage(json);
-          }
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
+            .eq('user_id', String(data.user.id))
+            .single();
+          const plan = prof?.plan || 'free';
+          const now = new Date();
+          const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+          const monthIsCurrent = prof?.month_start && String(prof.month_start).startsWith(firstOfMonth);
+          const base = Number.isFinite(prof?.monthly_base_limit) ? Number(prof?.monthly_base_limit) : (plan === 'pro' ? 500 : 50);
+          const bonus = monthIsCurrent ? (Number(prof?.monthly_bonus_credits) || 0) : 0;
+          const used = monthIsCurrent ? (Number(prof?.monthly_used) || 0) : 0;
+          const limit = Math.max(0, base + bonus);
+          const remaining = Math.max(0, limit - used);
+          const resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+          setUsage({ plan, used, limit, remaining, resetsAt });
         } catch {}
         finally {
           setIsLoadingUsage(false);
@@ -111,7 +123,14 @@ export default function Header() {
         </Link>
         <div className="flex items-center gap-3">
           <div className="rounded-full p-[1px] bg-gradient-to-r from-emerald-400 via-sky-500 to-violet-500">
-            <div className="rounded-full px-3 py-1 text-xs bg-neutral-900/80 text-white/90">
+            <div
+              className="rounded-full px-3 py-1 text-xs bg-neutral-900/80 text-white/90"
+              title={
+                !isLoadingUsage && usage?.remaining === 0 && usage?.resetsAt
+                  ? `Resets on ${new Date(usage.resetsAt).toLocaleDateString()}`
+                  : undefined
+              }
+            >
               {isLoadingUsage ? 'Loading…' : `${usage?.remaining ?? 0} left`}
             </div>
           </div>

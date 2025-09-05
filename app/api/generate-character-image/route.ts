@@ -52,16 +52,20 @@ export async function POST(request: NextRequest) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    // Quota check (use absolute URL from the incoming request)
-    let usage: any = null;
-    try {
-      const reqUrl = new URL(request.url);
-      const base = `${reqUrl.protocol}//${reqUrl.host}`;
-      const cookie = request.headers.get('cookie') || '';
-      const usageRes = await fetch(`${base}/api/usage`, { cache: 'no-store', headers: cookie ? { cookie } : {} });
-      usage = await usageRes.json();
-    } catch {}
-    if (usage && usage.remaining !== undefined && Number(usage.remaining) <= 0) {
+    // Quota pre-check via profiles snapshot (no internal HTTP)
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
+      .eq('user_id', user.id)
+      .single();
+    const base = Number.isFinite(prof?.monthly_base_limit) ? Number(prof?.monthly_base_limit) : (prof?.plan === 'pro' ? 500 : 50);
+    const monthIsCurrent = prof?.month_start && String(prof.month_start).startsWith(firstOfMonth);
+    const bonus = monthIsCurrent ? (Number(prof?.monthly_bonus_credits) || 0) : 0;
+    const used = monthIsCurrent ? (Number(prof?.monthly_used) || 0) : 0;
+    const remaining = Math.max(0, Math.max(0, base + bonus) - used);
+    if (remaining <= 0) {
       return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
     }
     // Match Google AI Studio sample model
@@ -128,20 +132,14 @@ export async function POST(request: NextRequest) {
       }).eq('id', existing.id);
       await supabase.from('projects').update({ updated_at: now }).eq('id', projectId).eq('user_id', user.id);
       try {
-        const reqUrl = new URL(request.url);
-        const base = `${reqUrl.protocol}//${reqUrl.host}`;
-        const cookie = request.headers.get('cookie') || '';
-        await fetch(`${base}/api/usage`, { method: 'POST', headers: cookie ? { cookie } : {} });
+        await supabase.rpc('increment_monthly_usage');
       } catch {}
       return NextResponse.json({ success: true, image: dataUrl, path: stablePath });
     }
 
     // No projectId provided: just return image data without storage persistence
     try {
-      const reqUrl = new URL(request.url);
-      const base = `${reqUrl.protocol}//${reqUrl.host}`;
-      const cookie = request.headers.get('cookie') || '';
-      await fetch(`${base}/api/usage`, { method: 'POST', headers: cookie ? { cookie } : {} });
+      await supabase.rpc('increment_monthly_usage');
     } catch {}
     return NextResponse.json({ success: true, image: dataUrl });
   } catch (error: unknown) {
