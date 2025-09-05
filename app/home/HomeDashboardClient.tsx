@@ -31,6 +31,50 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
   const [sortBy, setSortBy] = useState<"modified" | "title">("modified");
   const [statusFilter, setStatusFilter] = useState<"all" | ProjectStatus>("all");
 
+  // Local cache pruning helpers (TTL + LRU)
+  const pruneOldCaches = (newProjectId: string) => {
+    try {
+      const INDEX_KEY = 'projectCacheIndex';
+      const TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+      const MAX_RECENT = 5; // keep most recent 5
+      const now = Date.now();
+      const raw = localStorage.getItem(INDEX_KEY);
+      type Entry = { projectId: string; lastAccessed: number };
+      let index: Entry[] = [];
+      if (raw) {
+        try { index = JSON.parse(raw) as Entry[]; } catch { index = []; }
+      }
+
+      // Remove TTL-expired entries first
+      index = index.filter((e) => now - (e?.lastAccessed || 0) <= TTL_MS);
+
+      // Deduplicate by projectId, keeping the most recent timestamp
+      const seen = new Map<string, number>();
+      for (const e of index) {
+        const t = e?.lastAccessed || 0;
+        const prev = seen.get(e.projectId) || 0;
+        if (t > prev) seen.set(e.projectId, t);
+      }
+      index = Array.from(seen.entries()).map(([projectId, lastAccessed]) => ({ projectId, lastAccessed }));
+
+      // Ensure the new project is at the front with current timestamp
+      const filtered = index.filter((e) => e.projectId !== newProjectId);
+      const updated = [{ projectId: newProjectId, lastAccessed: now }, ...filtered]
+        .sort((a, b) => b.lastAccessed - a.lastAccessed);
+
+      // Keep top N; delete caches for the rest (excluding the new project for safety)
+      const keep = new Set(updated.slice(0, MAX_RECENT).map((e) => e.projectId));
+      const toDelete = updated.filter((e) => !keep.has(e.projectId)).map((e) => e.projectId);
+      for (const pid of toDelete) {
+        if (pid === newProjectId) continue;
+        try { localStorage.removeItem(`scenes:${pid}`); } catch {}
+        try { localStorage.removeItem(`projectRefImages:${pid}`); } catch {}
+      }
+
+      localStorage.setItem(INDEX_KEY, JSON.stringify(updated.filter((e) => keep.has(e.projectId))));
+    } catch {}
+  };
+
   // If server did not provide projects (edge cases), fallback to client fetch
   useEffect(() => {
     if (initialProjects.length > 0) return;
@@ -150,6 +194,8 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
                   if (res.ok) {
                     const { project } = await res.json();
                     try { sessionStorage.setItem('currentProjectId', project.id); } catch {}
+                    // Prune old caches while keeping last 5 recent and 7-day TTL
+                    pruneOldCaches(project.id);
                   }
                 } catch {}
               })();
