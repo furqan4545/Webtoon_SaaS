@@ -49,10 +49,12 @@ export default function AnalyzingStory() {
           return;
         }
 
-        // If characters already exist and art style has not changed, skip re-analysis
-        const shouldReuseCharacters = existingCharacters.length > 0 && (!artStyle || artStyle === storedArtStyle);
+        // If characters already exist, skip re-analysis unless force flag is set
+        const force = typeof window !== 'undefined' ? sessionStorage.getItem('forceReanalyze') === '1' : false;
+        const shouldReuseCharacters = existingCharacters.length > 0 && !force;
         if (shouldReuseCharacters) {
           try { sessionStorage.removeItem('pendingArtStyle'); } catch {}
+          try { sessionStorage.removeItem('forceReanalyze'); } catch {}
           router.push('/generate-characters');
           return;
         }
@@ -90,6 +92,7 @@ export default function AnalyzingStory() {
           } catch {}
           // Clear pending art style once processed
           try { sessionStorage.removeItem('pendingArtStyle'); } catch {}
+          try { sessionStorage.removeItem('forceReanalyze'); } catch {}
           // Persist characters to DB (create-only)
           try {
             const list = Array.isArray(data.characters) ? data.characters : [];

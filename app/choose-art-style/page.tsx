@@ -84,6 +84,30 @@ export default function ChooseArtStyle() {
     })();
   };
 
+  const handleReanalyze = async () => {
+    const text = styleText.trim();
+    if (!text) return;
+    try {
+      sessionStorage.setItem('pendingArtStyle', text);
+      sessionStorage.setItem('forceReanalyze', '1');
+    } catch {}
+    router.push("/analyzing-story");
+    (async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        if (!projectId) return;
+        const check = await fetch(`/api/art-style?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+        const j = await check.json();
+        if (j?.artStyle) {
+          await fetch('/api/art-style', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, description: text }) });
+        } else {
+          await fetch('/api/art-style', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, description: text }) });
+        }
+        await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, art_style: text }) });
+      } catch {}
+    })();
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
       <main className="mx-auto max-w-5xl px-4 py-8">
@@ -149,6 +173,14 @@ export default function ChooseArtStyle() {
               className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95 disabled:opacity-50"
             >
               Continue to Character Creation →
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleReanalyze}
+              disabled={!styleText.trim()}
+              className="border-white/20 text-white hover:bg-white/10"
+            >
+              Re-analyze characters
             </Button>
           </div>
         </div>
