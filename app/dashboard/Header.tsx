@@ -4,6 +4,7 @@ import { createClient } from "@/utils/supabase/client";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -20,6 +21,13 @@ export default function Header() {
   const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
   const [isNavigatingHome, setIsNavigatingHome] = useState(false);
+  const [usage, setUsage] = useState<{
+    plan: string;
+    used: number;
+    limit: number;
+    remaining: number;
+  } | null>(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -33,6 +41,17 @@ export default function Header() {
             sessionStorage.setItem(key, '1');
           }
         } catch {}
+        try {
+          setIsLoadingUsage(true);
+          const res = await fetch('/api/usage', { method: 'GET' });
+          if (res.ok) {
+            const json = await res.json();
+            setUsage(json);
+          }
+        } catch {}
+        finally {
+          setIsLoadingUsage(false);
+        }
       }
     });
   }, []);
@@ -90,33 +109,48 @@ export default function Header() {
           <span className="text-white">Web</span>
           <span className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 bg-clip-text text-transparent">Toon</span>
         </Link>
-        <DropdownMenu>
-          <DropdownMenuTrigger className="rounded-full focus:outline-none">
-            <div className="flex items-center gap-3">
-              <Avatar className="h-8 w-8">
-                <AvatarImage alt={email ?? "avatar"} />
-                <AvatarFallback>SF</AvatarFallback>
-              </Avatar>
-              <span className="hidden sm:block text-sm text-white/80">{email ?? "Account"}</span>
+        <div className="flex items-center gap-3">
+          <div className="rounded-full p-[1px] bg-gradient-to-r from-emerald-400 via-sky-500 to-violet-500">
+            <div className="rounded-full px-3 py-1 text-xs bg-neutral-900/80 text-white/90">
+              {isLoadingUsage ? 'Loading…' : `${usage?.remaining ?? 0} left`}
             </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-64 border-white/10 bg-neutral-900 text-white"
-          >
-            <DropdownMenuLabel className="text-white/80">
-              Signed in as
-            </DropdownMenuLabel>
-            <div className="px-2 pb-1 text-sm text-white/70 truncate">{email ?? "—"}</div>
-            <DropdownMenuSeparator className="bg-white/10" />
-            <DropdownMenuItem
-              onClick={logout}
-              className="text-white focus:bg-white/10 focus:text-white"
+          </div>
+          <Link href="/dashboard?plan=pro" prefetch>
+            <Button
+              className="h-9 rounded-full px-4 text-sm font-medium text-white bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-500 hover:from-rose-400 hover:via-fuchsia-400 hover:to-indigo-400 focus-visible:ring-2 focus-visible:ring-rose-400/40"
             >
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <span className="hidden sm:inline">Upgrade to Pro</span>
+              <span className="sm:hidden">Upgrade</span>
+            </Button>
+          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="rounded-full focus:outline-none">
+              <div className="flex items-center gap-3">
+                <Avatar className="h-8 w-8">
+                  <AvatarImage alt={email ?? "avatar"} />
+                  <AvatarFallback>SF</AvatarFallback>
+                </Avatar>
+                <span className="hidden sm:block text-sm text-white/80">{email ?? "Account"}</span>
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-64 border-white/10 bg-neutral-900 text-white"
+            >
+              <DropdownMenuLabel className="text-white/80">
+                Signed in as
+              </DropdownMenuLabel>
+              <div className="px-2 pb-1 text-sm text-white/70 truncate">{email ?? "—"}</div>
+              <DropdownMenuSeparator className="bg-white/10" />
+              <DropdownMenuItem
+                onClick={logout}
+                className="text-white focus:bg-white/10 focus:text-white"
+              >
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   );
