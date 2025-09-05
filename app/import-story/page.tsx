@@ -16,9 +16,18 @@ export default function ImportStory() {
   const router = useRouter();
   const supabase = createBrowserSupabase();
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSavedTextRef = useRef<string>("");
   const [uploading, setUploading] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const uploadRef = useRef<HTMLInputElement | null>(null);
+
+  // Prefetch next route for snappy navigation
+  useEffect(() => {
+    try {
+      // @ts-ignore
+      router.prefetch && router.prefetch('/choose-art-style');
+    } catch {}
+  }, [router]);
 
   // Load story from DB for the current project only
   useEffect(() => {
@@ -39,28 +48,40 @@ export default function ImportStory() {
     load();
   }, []);
 
-  const handleProcessStory = async () => {
+  const handleProcessStory = () => {
     if (storyText.length < 100) return;
-    try {
-      const projectId = sessionStorage.getItem('currentProjectId');
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user && projectId) {
-        await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, story: storyText }) });
-      }
-    } catch {}
+    // Navigate immediately; persist in background
     router.push("/choose-art-style");
+    (async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        // Cancel any pending debounced save to avoid double-saving
+        if (saveTimer.current) {
+          clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+        }
+        // Only save if content changed since last successful save
+        const needsSave = lastSavedTextRef.current !== storyText;
+        if (projectId && needsSave) {
+          await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, story: storyText }) });
+          lastSavedTextRef.current = storyText;
+        }
+      } catch {}
+    })();
   };
 
   // Debounced DB save for current project
   const handleChange = (value: string) => {
     setStoryText(value);
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    // Skip scheduling a save if value hasn't changed from last saved content
+    if (value === lastSavedTextRef.current) return;
     saveTimer.current = setTimeout(async () => {
       try {
         const projectId = sessionStorage.getItem('currentProjectId');
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user && projectId) {
+        if (projectId) {
           await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, story: value }) });
+          lastSavedTextRef.current = value;
         }
       } catch {}
     }, 800);
