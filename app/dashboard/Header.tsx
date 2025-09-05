@@ -45,6 +45,14 @@ export default function Header() {
     } catch {}
   }, [router]);
 
+  // Turn off the top loader when navigation completes (pathname changes)
+  useEffect(() => {
+    if (isNavigatingHome) {
+      setIsNavigatingHome(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   const logout = async () => {
     await supabase.auth.signOut();
     router.replace("/login");
