@@ -38,22 +38,22 @@ export default function WebtoonBuilder() {
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
-      // Read generated scene images for this project
       const { data, error } = await supabase
         .from('generated_scene_images')
         .select('scene_no,image_path')
         .eq('project_id', projectId)
         .order('scene_no', { ascending: true });
       if (error || !data) return;
-      // Create a map of scene_no -> signed URL
-      const results: Record<number, string | undefined> = {};
-      for (const row of data) {
-        if (!row?.image_path) continue;
+      const signTasks = data.map(async (row) => {
+        if (!row?.image_path) return [row?.scene_no, undefined] as const;
         const signed = await supabase.storage.from('webtoon').createSignedUrl(row.image_path, 60 * 60);
-        const url = signed.data?.signedUrl;
-        if (url) results[Number(row.scene_no)] = url;
+        return [row.scene_no, signed.data?.signedUrl] as const;
+      });
+      const signedList = await Promise.all(signTasks);
+      const results: Record<number, string | undefined> = {};
+      for (const [sceneNo, url] of signedList) {
+        if (sceneNo) results[Number(sceneNo)] = url;
       }
-      // Apply to scenes state
       setScenes(prev => prev.map((s, i) => ({ ...s, imageDataUrl: results[i + 1] || s.imageDataUrl })));
     } catch {}
   };
@@ -183,36 +183,37 @@ export default function WebtoonBuilder() {
           existingScenes = Array.isArray(j.scenes) ? j.scenes : [];
         } catch {}
 
-        // Preload and cache character reference images locally for this session
+        // Kick off character reference image preload in background (non-blocking)
         try {
           const cacheKey = `projectRefImages:${projectId}`;
-          const cached = localStorage.getItem(cacheKey);
-          if (cached) {
-            const list = JSON.parse(cached) as Array<{ name: string; dataUrl: string }>;
-            setRefImages(list);
-          } else {
-            const r = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
-            const j = await r.json();
-            const list = Array.isArray(j.characters) ? j.characters : [];
-            const refs: Array<{ name: string; dataUrl: string }> = [];
-            for (let i = 0; i < list.length; i++) {
-              const c = list[i];
-              if (!c?.image_path) continue;
-              const signed = await supabase.storage.from('webtoon').createSignedUrl(c.image_path, 60 * 60);
-              const url = signed.data?.signedUrl;
-              if (!url) continue;
-              const resp = await fetch(url);
-              const blob = await resp.blob();
-              const b64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsDataURL(blob); });
-              refs.push({ name: c.name || `Character ${i+1}`, dataUrl: b64 });
-            }
-            setRefImages(refs);
-            try { localStorage.setItem(cacheKey, JSON.stringify(refs)); } catch {}
+          const cached = (() => { try { return JSON.parse(localStorage.getItem(cacheKey) || 'null'); } catch { return null; } })();
+          if (cached && Array.isArray(cached)) {
+            setRefImages(cached);
           }
-          // Clear cache when leaving page
-          window.addEventListener('beforeunload', () => {
-            try { localStorage.removeItem(`projectRefImages:${projectId}`); } catch {}
-          }, { once: true });
+          (async () => {
+            try {
+              const r = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+              const j = await r.json();
+              const list = Array.isArray(j.characters) ? j.characters : [];
+              const signedTasks = list.map(async (c: any, idx: number) => {
+                if (!c?.image_path) return null;
+                const signed = await supabase.storage.from('webtoon').createSignedUrl(c.image_path, 60 * 60);
+                const url = signed.data?.signedUrl;
+                if (!url) return null;
+                try {
+                  const resp = await fetch(url);
+                  const blob = await resp.blob();
+                  const b64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.readAsDataURL(blob); });
+                  return { name: c.name || `Character ${idx+1}`, dataUrl: b64 };
+                } catch { return null; }
+              });
+              const results = (await Promise.all(signedTasks)).filter(Boolean) as Array<{ name: string; dataUrl: string }>;
+              if (results.length > 0) {
+                setRefImages(results);
+                try { localStorage.setItem(cacheKey, JSON.stringify(results)); } catch {}
+              }
+            } catch {}
+          })();
         } catch {}
 
         if (existingScenes.length > 0) {
