@@ -22,11 +22,17 @@ export default function AnalyzingStory() {
           return;
         }
 
-        // Load story and style strictly from DB
+        // Load story from DB; art style can use pending value if available for faster start
         const res = await fetch(`/api/projects?id=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
         const json = await res.json();
         const story: string | undefined = json?.project?.story;
-        const artStyle: string | undefined = json?.project?.art_style || undefined;
+        let artStyle: string | undefined = undefined;
+        try {
+          artStyle = sessionStorage.getItem('pendingArtStyle') || undefined;
+        } catch {}
+        if (!artStyle) {
+          artStyle = json?.project?.art_style || undefined;
+        }
 
         if (!story) {
           toast.error("No story found", {
@@ -67,6 +73,8 @@ export default function AnalyzingStory() {
               artStyle = (j2?.project?.art_style as string | undefined) || undefined;
             }
           } catch {}
+          // Clear pending art style once processed
+          try { sessionStorage.removeItem('pendingArtStyle'); } catch {}
           // Persist characters to DB (create-only)
           try {
             const list = Array.isArray(data.characters) ? data.characters : [];
@@ -108,9 +116,14 @@ export default function AnalyzingStory() {
       <div className="text-center max-w-md mx-auto px-6">
         {/* Loading Card */}
         <div className="border border-white/10 bg-white/5 backdrop-blur-sm rounded-2xl p-8">
-          {/* Spinner */}
-          <div className="mb-6 flex justify-center">
+          {/* Spinner + dotted animation */}
+          <div className="mb-6 flex flex-col items-center gap-3">
             <div className="w-12 h-12 border-4 border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin"></div>
+            <div className="flex gap-2" aria-hidden>
+              <span className="inline-block h-2 w-2 rounded-full bg-white/60 animate-pulse [animation-delay:0ms]"></span>
+              <span className="inline-block h-2 w-2 rounded-full bg-white/60 animate-pulse [animation-delay:150ms]"></span>
+              <span className="inline-block h-2 w-2 rounded-full bg-white/60 animate-pulse [animation-delay:300ms]"></span>
+            </div>
           </div>
           
           {/* Title */}
@@ -120,7 +133,8 @@ export default function AnalyzingStory() {
           
           {/* Description */}
           <p className="text-white/70">
-            {error ? error : "Intelligently detecting characters and generating descriptions..."}
+            {error ? error : "Intelligently detecting characters and generating descriptions"}
+            {!error && <span aria-hidden>…</span>}
           </p>
         </div>
       </div>

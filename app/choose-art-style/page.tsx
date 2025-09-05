@@ -64,11 +64,14 @@ export default function ChooseArtStyle() {
   const handleContinue = async () => {
     const text = styleText.trim();
     if (!text) return;
-    // Persist to new art_styles table and project
-    try {
-      const projectId = sessionStorage.getItem('currentProjectId');
-      if (projectId) {
-        // Check if row exists
+    try { sessionStorage.setItem('pendingArtStyle', text); } catch {}
+    // Navigate immediately to loader
+    router.push("/analyzing-story");
+    // Persist in background
+    (async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        if (!projectId) return;
         const check = await fetch(`/api/art-style?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
         const j = await check.json();
         if (j?.artStyle) {
@@ -76,20 +79,9 @@ export default function ChooseArtStyle() {
         } else {
           await fetch('/api/art-style', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, description: text }) });
         }
-        // Mirror to projects.art_style for convenience
         await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, art_style: text }) });
-        // If characters already exist for this project, skip generation and go straight to editor
-        try {
-          const resChars = await fetch(`/api/characters?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
-          const json = await resChars.json();
-          if (Array.isArray(json.characters) && json.characters.length > 0) {
-            router.push('/generate-characters');
-            return;
-          }
-        } catch {}
-      }
-    } catch {}
-    router.push("/analyzing-story");
+      } catch {}
+    })();
   };
 
   return (
