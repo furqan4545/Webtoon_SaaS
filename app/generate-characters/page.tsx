@@ -90,13 +90,13 @@ export default function GenerateCharacters() {
           .from('profiles')
           .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
           .single();
-        const plan = prof?.plan || 'free';
+        const plan = (prof as any)?.plan || 'free';
         const now = new Date();
-        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const monthIsCurrent = prof?.month_start && String(prof.month_start).startsWith(firstOfMonth);
-        const base = Number.isFinite(prof?.monthly_base_limit) ? Number(prof?.monthly_base_limit) : (plan === 'pro' ? 500 : 50);
-        const bonus = monthIsCurrent ? (Number(prof?.monthly_bonus_credits) || 0) : 0;
-        const used = monthIsCurrent ? (Number(prof?.monthly_used) || 0) : 0;
+        const start = (prof as any)?.month_start ? new Date(String((prof as any).month_start)) : null;
+        const monthIsCurrent = !!start && start.getUTCFullYear() === now.getUTCFullYear() && start.getUTCMonth() === now.getUTCMonth();
+        const base = Number.isFinite((prof as any)?.monthly_base_limit) ? Number((prof as any)?.monthly_base_limit) : (plan === 'pro' ? 500 : 50);
+        const bonus = monthIsCurrent ? (Number((prof as any)?.monthly_bonus_credits) || 0) : 0;
+        const used = monthIsCurrent ? (Number((prof as any)?.monthly_used) || 0) : 0;
         const limit = Math.max(0, base + bonus);
         const remaining = Math.max(0, limit - used);
         const resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();

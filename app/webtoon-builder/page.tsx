@@ -285,8 +285,8 @@ export default function WebtoonBuilder() {
           .single();
         const plan = (prof as any)?.plan || 'free';
         const now = new Date();
-        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const monthIsCurrent = (prof as any)?.month_start && String((prof as any).month_start).startsWith(firstOfMonth);
+        const start = (prof as any)?.month_start ? new Date(String((prof as any).month_start)) : null;
+        const monthIsCurrent = !!start && start.getUTCFullYear() === now.getUTCFullYear() && start.getUTCMonth() === now.getUTCMonth();
         const base = Number.isFinite((prof as any)?.monthly_base_limit) ? Number((prof as any)?.monthly_base_limit) : (plan === 'pro' ? 500 : 50);
         const bonus = monthIsCurrent ? (Number((prof as any)?.monthly_bonus_credits) || 0) : 0;
         const used = monthIsCurrent ? (Number((prof as any)?.monthly_used) || 0) : 0;
