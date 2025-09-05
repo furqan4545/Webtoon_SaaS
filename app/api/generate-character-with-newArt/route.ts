@@ -50,6 +50,18 @@ export async function POST(request: NextRequest) {
     );
     const styleText = sanitize(artStyle || "webtoon, clean outlines, expressive, flat cel shading");
     const prompt = sanitize(`${systemInstruction}\n\nCharacter name: ${name}.\nCharacter description: ${description}.\nDesired style: ${styleText}.`);
+    // Quota check before calling model
+    try {
+      const reqUrl = new URL(request.url);
+      const base = `${reqUrl.protocol}//${reqUrl.host}`;
+      const cookie = request.headers.get('cookie') || '';
+      const usageRes = await fetch(`${base}/api/usage`, { cache: 'no-store', headers: cookie ? { cookie } : {} });
+      const usage = await usageRes.json();
+      if (usage && usage.remaining !== undefined && Number(usage.remaining) <= 0) {
+        return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
+      }
+    } catch {}
+
     const response = await ai.models.generateContent({ model, config, contents: [{ role: 'user', parts: [{ text: prompt }] }] });
     const r: any = response as any;
     const parts: any[] = r?.candidates?.[0]?.content?.parts || [];
@@ -75,6 +87,13 @@ export async function POST(request: NextRequest) {
     await supabase.from('projects').update({ art_style: artStyle, updated_at: now }).eq('id', projectId).eq('user_id', user.id);
 
     const dataUrl = `data:${mimeType};base64,${base64}`;
+    // Deduct one credit after successful generation
+    try {
+      const reqUrl = new URL(request.url);
+      const base = `${reqUrl.protocol}//${reqUrl.host}`;
+      const cookie = request.headers.get('cookie') || '';
+      await fetch(`${base}/api/usage`, { method: 'POST', headers: cookie ? { cookie } : {} });
+    } catch {}
     return NextResponse.json({ success: true, image: dataUrl, path: stablePath });
   } catch (error: any) {
     return NextResponse.json({ error: 'Failed to regenerate characters with new art style', details: error?.message || 'Unknown' }, { status: 500 });

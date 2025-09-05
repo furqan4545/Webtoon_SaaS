@@ -57,7 +57,8 @@ export async function POST(request: NextRequest) {
     try {
       const reqUrl = new URL(request.url);
       const base = `${reqUrl.protocol}//${reqUrl.host}`;
-      const usageRes = await fetch(`${base}/api/usage`, { cache: 'no-store' });
+      const cookie = request.headers.get('cookie') || '';
+      const usageRes = await fetch(`${base}/api/usage`, { cache: 'no-store', headers: cookie ? { cookie } : {} });
       usage = await usageRes.json();
     } catch {}
     if (usage && usage.remaining !== undefined && Number(usage.remaining) <= 0) {
@@ -129,7 +130,8 @@ export async function POST(request: NextRequest) {
       try {
         const reqUrl = new URL(request.url);
         const base = `${reqUrl.protocol}//${reqUrl.host}`;
-        await fetch(`${base}/api/usage`, { method: 'POST' });
+        const cookie = request.headers.get('cookie') || '';
+        await fetch(`${base}/api/usage`, { method: 'POST', headers: cookie ? { cookie } : {} });
       } catch {}
       return NextResponse.json({ success: true, image: dataUrl, path: stablePath });
     }
@@ -138,7 +140,8 @@ export async function POST(request: NextRequest) {
     try {
       const reqUrl = new URL(request.url);
       const base = `${reqUrl.protocol}//${reqUrl.host}`;
-      await fetch(`${base}/api/usage`, { method: 'POST' });
+      const cookie = request.headers.get('cookie') || '';
+      await fetch(`${base}/api/usage`, { method: 'POST', headers: cookie ? { cookie } : {} });
     } catch {}
     return NextResponse.json({ success: true, image: dataUrl });
   } catch (error: unknown) {
