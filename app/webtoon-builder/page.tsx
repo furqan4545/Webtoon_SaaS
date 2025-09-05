@@ -34,6 +34,7 @@ export default function WebtoonBuilder() {
   const supabase = createBrowserSupabase();
   const [artStyle, setArtStyle] = useState<string>("");
   const [refImages, setRefImages] = useState<Array<{ name: string; dataUrl: string }>>([]);
+  const [isFirstLoad, setIsFirstLoad] = useState<boolean>(true);
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -163,6 +164,17 @@ export default function WebtoonBuilder() {
           }
         } catch {}
 
+        // Local cache first for instant reloads
+        const cacheKeyScenes = `scenes:${projectId}`;
+        const cachedScenes = (() => {
+          try { return JSON.parse(localStorage.getItem(cacheKeyScenes) || 'null') as SceneItem[] | null; } catch { return null; }
+        })();
+        if (cachedScenes && Array.isArray(cachedScenes) && cachedScenes.length > 0) {
+          setScenes(cachedScenes);
+          setSelectedSceneIndex(0);
+          setIsFirstLoad(false);
+        }
+
         // Check for existing generated scenes in DB first
         let existingScenes: any[] = [];
         try {
@@ -207,6 +219,7 @@ export default function WebtoonBuilder() {
           const items: SceneItem[] = existingScenes.map((s: any) => ({ id: `scene_${s.scene_no}`, storyText: s.story_text || '', description: s.scene_description || '' }));
           setScenes(items);
           setSelectedSceneIndex(0);
+          try { localStorage.setItem(cacheKeyScenes, JSON.stringify(items)); } catch {}
           setChatMessages([
             { role: 'system', text: 'You are currently editing Scene 1' },
             { role: 'assistant', text: `Scene description: ${items[0]?.description || ''}` },
@@ -436,52 +449,66 @@ export default function WebtoonBuilder() {
           </div>
         </div>
         {loading && (
-          <div className="text-white/70">Generating scenes...</div>
+          <div className="flex flex-col items-center mb-6">
+            <div className="w-10 h-10 border-4 border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin"></div>
+            <div className="mt-3 text-sm text-white/80">Generating scenes…</div>
+          </div>
         )}
         {error && (
           <div className="text-red-400 mb-4">{error}</div>
         )}
-        {!loading && !error && (
+        {!error && (
           <div className="flex gap-6">
             <div className="flex-1 space-y-6">
-            {scenes.map((scene, i) => (
-              <div key={scene.id} onClick={() => setSelectedSceneIndex(i)}>
-              <Card className={`border-white/10 bg-white/5 backdrop-blur-sm cursor-pointer ${selectedSceneIndex === i ? 'ring-2 ring-fuchsia-500/60' : ''}`}>
+            {(loading && isFirstLoad ? Array.from({ length: 4 }) : scenes).map((scene: any, i: number) => (
+              <div key={scene?.id || `skeleton_${i}`} onClick={() => !loading && setSelectedSceneIndex(i)}>
+              <Card className={`border-white/10 bg-white/5 backdrop-blur-sm ${loading ? '' : 'cursor-pointer'} ${!loading && selectedSceneIndex === i ? 'ring-2 ring-fuchsia-500/60' : ''}`}>
                 <CardHeader>
                   <CardTitle className="text-white">Scene {i + 1}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div>
-                    <div className="text-xs uppercase text-white/60 mb-1">Scene Description</div>
-                    <div className="text-white/90">{scene.description}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs uppercase text-white/60 mb-1">Story Text</div>
-                    <div className="text-white/80">{scene.storyText}</div>
-                  </div>
-                  <div className="pt-2">
-                    <Button
-                      className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white"
-                      disabled={scene.isGenerating}
-                      onClick={() => handleGenerateScene(i)}
-                    >
-                      {scene.isGenerating ? (
-                        <>
-                          <div className="h-4 w-4 mr-2 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                          Generating...
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 className="h-4 w-4 mr-2" />
-                          Generate
-                        </>
+                  {loading && isFirstLoad ? (
+                    <>
+                      <div className="h-5 w-32 bg-white/10 rounded animate-pulse" />
+                      <div className="h-4 w-full bg-white/10 rounded animate-pulse" />
+                      <div className="h-4 w-5/6 bg-white/10 rounded animate-pulse" />
+                      <div className="mt-4 h-48 w-full bg-white/10 rounded animate-pulse" />
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <div className="text-xs uppercase text-white/60 mb-1">Scene Description</div>
+                        <div className="text-white/90">{scene.description}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs uppercase text-white/60 mb-1">Story Text</div>
+                        <div className="text-white/80">{scene.storyText}</div>
+                      </div>
+                      <div className="pt-2">
+                        <Button
+                          className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white"
+                          disabled={scene.isGenerating}
+                          onClick={() => handleGenerateScene(i)}
+                        >
+                          {scene.isGenerating ? (
+                            <>
+                              <div className="h-4 w-4 mr-2 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 className="h-4 w-4 mr-2" />
+                              Generate
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      {scene.imageDataUrl && (
+                        <div className="mt-4 flex justify-center">
+                          <img src={scene.imageDataUrl} alt={`Scene ${i + 1}`} className="max-w-[480px] w-full rounded-md border border-white/10" />
+                        </div>
                       )}
-                    </Button>
-                  </div>
-                  {scene.imageDataUrl && (
-                    <div className="mt-4 flex justify-center">
-                      <img src={scene.imageDataUrl} alt={`Scene ${i + 1}`} className="max-w-[480px] w-full rounded-md border border-white/10" />
-                    </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
