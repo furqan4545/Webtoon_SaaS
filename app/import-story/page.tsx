@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
-import Header from "../dashboard/Header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,7 +68,6 @@ export default function ImportStory() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
-      <Header />
       <main className="mx-auto max-w-4xl px-4 py-8">
         {/* Header Section */}
         <div className="mb-8">

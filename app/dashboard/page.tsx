@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
-import Header from "./Header";
 import Link from "next/link";
 import {
   Card,
@@ -21,7 +20,6 @@ export default async function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
-      <Header />
       <main className="mx-auto max-w-6xl px-4 pb-24">
         <section className="min-h-[calc(100vh-88px)] flex flex-col items-center justify-center text-center">
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">

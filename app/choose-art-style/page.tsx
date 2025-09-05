@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Header from "../dashboard/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
@@ -95,7 +94,6 @@ export default function ChooseArtStyle() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
-      <Header />
       <main className="mx-auto max-w-5xl px-4 py-8">
         {/* Header Section */}
         <div className="mb-8">

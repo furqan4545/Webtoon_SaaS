@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import Header from "../dashboard/Header";
 import { createClient } from "@/utils/supabase/client";
 import { Trash2 } from "lucide-react";
 
@@ -125,7 +124,6 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
-      <Header />
       <main className="mx-auto max-w-6xl px-4 py-8">
         {/* Hidden prefetch anchor as a fallback; on some Next versions this helps warm the route */}
         <Link href="/dashboard" prefetch className="hidden" aria-hidden="true" tabIndex={-1}>

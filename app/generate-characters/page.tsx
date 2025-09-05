@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Header from "../dashboard/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -175,7 +174,6 @@ export default function GenerateCharacters() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
-      <Header />
       <main className="mx-auto max-w-6xl px-4 py-8">
         {/* Header Section */}
         <div className="mb-8">

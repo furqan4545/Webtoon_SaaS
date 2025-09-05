@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Wand2, ChevronLeft, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ChangeArtStyleDialog from "@/components/ChangeArtStyleDialog";
-import Header from "../dashboard/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
 
@@ -405,7 +404,6 @@ export default function WebtoonBuilder() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
-      <Header />
       <main className="mx-auto max-w-6xl px-4 py-8 lg:pr-[460px]">
         <div className="flex items-center gap-3 mb-6">
           <Button
