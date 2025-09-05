@@ -12,7 +12,7 @@ export default async function Home() {
   // Server-side fetch to avoid initial client fetch and reduce re-renders
   const { data: projects, error } = await supabase
     .from('projects')
-    .select('*')
+    .select('id,title,status,updated_at')
     .eq('user_id', data.user.id)
     .order('updated_at', { ascending: false });
 

@@ -80,7 +80,7 @@ export default async function Dashboard() {
         </section>
 
         <div className="mt-10 flex justify-center">
-          <Link href="/" className="text-sm text-white/70 hover:text-white/90 underline">
+          <Link href="/" prefetch className="text-sm text-white/70 hover:text-white/90 underline">
             ← Back to Home
           </Link>
         </div>

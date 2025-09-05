@@ -37,6 +37,14 @@ export default function Header() {
     });
   }, []);
 
+  // Ensure home route is prefetched for fast dashboard → home transitions
+  useEffect(() => {
+    try {
+      // @ts-ignore
+      router.prefetch && router.prefetch('/');
+    } catch {}
+  }, [router]);
+
   const logout = async () => {
     await supabase.auth.signOut();
     router.replace("/login");
