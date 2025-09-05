@@ -145,6 +145,9 @@ export default function GenerateCharacters() {
         throw new Error(data?.error || 'Failed to generate image');
       }
       setCharacters(prev => prev.map(c => c.id === id ? { ...c, imageDataUrl: data.image, isGenerating: false, hasGenerated: true } : c));
+      // Optimistically decrement local credits and notify header
+      setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
+      window.dispatchEvent(new Event('credits:refresh'));
       if (data?.path) {
         const projectId = sessionStorage.getItem('currentProjectId');
         const current = characters.find(c => c.id === id);

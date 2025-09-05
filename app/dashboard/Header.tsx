@@ -31,41 +31,45 @@ export default function Header() {
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
+    const loadCredits = async () => {
+      const { data } = await supabase.auth.getUser();
       setEmail(data.user?.email ?? null);
-      if (data.user) {
-        // Only POST once per session to hydrate profile record
-        const key = 'profilePosted';
-        try {
-          if (!sessionStorage.getItem(key)) {
-            await fetch('/api/profile', { method: 'POST' });
-            sessionStorage.setItem(key, '1');
-          }
-        } catch {}
-        try {
-          setIsLoadingUsage(true);
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
-            .eq('user_id', String(data.user.id))
-            .single();
-          const plan = prof?.plan || 'free';
-          const now = new Date();
-          const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-          const monthIsCurrent = prof?.month_start && String(prof.month_start).startsWith(firstOfMonth);
-          const base = Number.isFinite(prof?.monthly_base_limit) ? Number(prof?.monthly_base_limit) : (plan === 'pro' ? 500 : 50);
-          const bonus = monthIsCurrent ? (Number(prof?.monthly_bonus_credits) || 0) : 0;
-          const used = monthIsCurrent ? (Number(prof?.monthly_used) || 0) : 0;
-          const limit = Math.max(0, base + bonus);
-          const remaining = Math.max(0, limit - used);
-          const resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
-          setUsage({ plan, used, limit, remaining, resetsAt });
-        } catch {}
-        finally {
-          setIsLoadingUsage(false);
+      if (!data.user) return;
+      // Only POST once per session to hydrate profile record
+      const key = 'profilePosted';
+      try {
+        if (!sessionStorage.getItem(key)) {
+          await fetch('/api/profile', { method: 'POST' });
+          sessionStorage.setItem(key, '1');
         }
+      } catch {}
+      try {
+        setIsLoadingUsage(true);
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
+          .eq('user_id', String(data.user.id))
+          .single();
+        const plan = prof?.plan || 'free';
+        const now = new Date();
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const monthIsCurrent = prof?.month_start && String(prof.month_start).startsWith(firstOfMonth);
+        const base = Number.isFinite(prof?.monthly_base_limit) ? Number(prof?.monthly_base_limit) : (plan === 'pro' ? 500 : 50);
+        const bonus = monthIsCurrent ? (Number(prof?.monthly_bonus_credits) || 0) : 0;
+        const used = monthIsCurrent ? (Number(prof?.monthly_used) || 0) : 0;
+        const limit = Math.max(0, base + bonus);
+        const remaining = Math.max(0, limit - used);
+        const resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+        setUsage({ plan, used, limit, remaining, resetsAt });
+      } catch {}
+      finally {
+        setIsLoadingUsage(false);
       }
-    });
+    };
+    loadCredits();
+    const onRefresh = () => loadCredits();
+    window.addEventListener('credits:refresh', onRefresh);
+    return () => window.removeEventListener('credits:refresh', onRefresh);
   }, []);
 
   // Ensure home route is prefetched for fast dashboard → home transitions

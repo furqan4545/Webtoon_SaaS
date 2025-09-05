@@ -92,6 +92,9 @@ export default function WebtoonBuilder() {
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to generate scene image');
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
+      // Optimistically decrement local credits and notify header
+      setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
+      window.dispatchEvent(new Event('credits:refresh'));
     } catch (e) {
       console.error(e);
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
