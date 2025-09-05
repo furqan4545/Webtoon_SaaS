@@ -182,6 +182,7 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
             className="h-10 px-4 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95"
             onClick={() => {
               // Navigate immediately for snappy UX
+              try { sessionStorage.removeItem('currentProjectId'); } catch {}
               router.push("/dashboard");
               // Create in background and hydrate sessionStorage for downstream pages
               (async () => {
