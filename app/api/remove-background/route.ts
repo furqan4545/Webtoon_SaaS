@@ -22,6 +22,24 @@ export async function POST(request: NextRequest) {
     const model = 'gemini-2.5-flash-image-preview';
     const config = { responseModalities: ['IMAGE', 'TEXT'] } as any;
 
+    // Quota pre-check via profiles snapshot
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
+        .eq('user_id', user.id)
+        .single();
+      const plan = prof?.plan || 'free';
+      const now = new Date();
+      const start = prof?.month_start ? new Date(String(prof.month_start)) : null;
+      const monthIsCurrent = !!start && start.getUTCFullYear() === now.getUTCFullYear() && start.getUTCMonth() === now.getUTCMonth();
+      const base = Number.isFinite(prof?.monthly_base_limit) ? Number(prof?.monthly_base_limit) : (plan === 'pro' ? 500 : 50);
+      const bonus = monthIsCurrent ? (Number(prof?.monthly_bonus_credits) || 0) : 0;
+      const used = monthIsCurrent ? (Number(prof?.monthly_used) || 0) : 0;
+      const remaining = Math.max(0, Math.max(0, base + bonus) - used);
+      if (remaining <= 0) return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
+    } catch {}
+
     let b64: string | undefined;
     let mime: string = 'image/png';
     if (String(imageDataUrl).startsWith('data:')) {
@@ -98,6 +116,8 @@ export async function POST(request: NextRequest) {
       } catch {}
     }
 
+    // Deduct after success
+    try { await supabase.rpc('increment_monthly_usage'); } catch {}
     return NextResponse.json({ success: true, image: dataUrl }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error: any) {
     return NextResponse.json({ error: 'Failed to remove background', details: error?.message || 'Unknown' }, { status: 500 });

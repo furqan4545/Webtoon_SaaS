@@ -406,6 +406,9 @@ export default function WebtoonBuilder() {
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to remove background');
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
+      // Optimistically decrement and notify header
+      setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
+      window.dispatchEvent(new Event('credits:refresh'));
     } catch (e) {
       console.error('remove background error', e);
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
@@ -427,6 +430,9 @@ export default function WebtoonBuilder() {
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to edit scene image');
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
+      // Optimistically decrement and notify header
+      setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
+      window.dispatchEvent(new Event('credits:refresh'));
     } catch (e) {
       console.error('edit scene error', e);
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
