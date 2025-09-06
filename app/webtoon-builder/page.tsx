@@ -71,11 +71,32 @@ export default function WebtoonBuilder() {
     "Darker lighting",
   ];
 
+  // Trim reference images to keep client → API payload under serverless limits (~4.5MB)
+  const pickSafeRefsForPayload = (refs: Array<{ name: string; dataUrl: string }>): Array<{ name: string; dataUrl: string }> => {
+    try {
+      let approxBytes = 0;
+      const out: Array<{ name: string; dataUrl: string }> = [];
+      // Leave headroom for JSON overhead; target ~2.8MB
+      const MAX_BYTES = 2_800_000;
+      for (const r of refs) {
+        const b64 = String(r.dataUrl || '').split(',')[1] || '';
+        const bytes = Math.floor(b64.length * 0.75);
+        if (!b64) continue;
+        if (approxBytes + bytes > MAX_BYTES) break;
+        approxBytes += bytes;
+        out.push(r);
+      }
+      return out;
+    } catch {
+      return refs.slice(0, 1);
+    }
+  };
+
   const handleGenerateScene = async (index: number, overrideDescription?: string) => {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
-      const characterImages: Array<{ name: string; dataUrl: string }> = refImages;
+      const characterImages: Array<{ name: string; dataUrl: string }> = pickSafeRefsForPayload(refImages);
       const res = await fetch('/api/generate-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
