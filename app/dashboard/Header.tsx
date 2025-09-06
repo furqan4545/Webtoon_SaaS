@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ export default function Header() {
   const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
   const [isNavigatingHome, setIsNavigatingHome] = useState(false);
+  const [isAuthed, setIsAuthed] = useState(false);
   const [usage, setUsage] = useState<{
     plan: string;
     used: number;
@@ -31,10 +33,14 @@ export default function Header() {
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
   useEffect(() => {
-    const loadCredits = async () => {
-      const { data } = await supabase.auth.getUser();
-      setEmail(data.user?.email ?? null);
-      if (!data.user) return;
+    let mounted = true;
+    const loadCreditsForUser = async (userId: string | null | undefined, emailVal?: string | null) => {
+      setEmail(emailVal ?? null);
+      setIsAuthed(!!userId);
+      if (!userId) {
+        setUsage(null);
+        return;
+      }
       // Only POST once per session to hydrate profile record
       const key = 'profilePosted';
       try {
@@ -48,7 +54,7 @@ export default function Header() {
         const { data: prof } = await supabase
           .from('profiles')
           .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
-          .eq('user_id', String(data.user.id))
+          .eq('user_id', String(userId))
           .single();
         const plan = prof?.plan || 'free';
         const now = new Date();
@@ -60,17 +66,35 @@ export default function Header() {
         const limit = Math.max(0, base + bonus);
         const remaining = Math.max(0, limit - used);
         const resetsAt = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
-        setUsage({ plan, used, limit, remaining, resetsAt });
+        if (mounted) setUsage({ plan, used, limit, remaining, resetsAt });
       } catch {}
       finally {
-        setIsLoadingUsage(false);
+        if (mounted) setIsLoadingUsage(false);
       }
     };
-    loadCredits();
-    const onRefresh = () => loadCredits();
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const user = data.session?.user || null;
+      await loadCreditsForUser(user?.id, user?.email ?? null);
+    })();
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user || null;
+      loadCreditsForUser(user?.id, user?.email ?? null);
+    });
+    const onRefresh = () => {
+      // refresh for the current session
+      supabase.auth.getSession().then(({ data }) => {
+        const user = data.session?.user || null;
+        loadCreditsForUser(user?.id, user?.email ?? null);
+      });
+    };
     window.addEventListener('credits:refresh', onRefresh);
-    return () => window.removeEventListener('credits:refresh', onRefresh);
-  }, []);
+    return () => {
+      mounted = false;
+      try { authListener?.subscription?.unsubscribe(); } catch {}
+      window.removeEventListener('credits:refresh', onRefresh);
+    };
+  }, [supabase]);
 
   // Ensure home route is prefetched for fast dashboard → home transitions
   useEffect(() => {
@@ -126,34 +150,38 @@ export default function Header() {
           <span className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 bg-clip-text text-transparent">Toon</span>
         </Link>
         <div className="flex items-center gap-3">
-          <div className="rounded-full p-[1px] bg-gradient-to-r from-emerald-400 via-sky-500 to-violet-500">
-            <div
-              className="rounded-full px-3 py-1 text-xs bg-neutral-900/80 text-white/90"
-              title={
-                !isLoadingUsage && usage?.remaining === 0 && usage?.resetsAt
-                  ? `Resets on ${new Date(usage.resetsAt).toLocaleDateString()}`
-                  : undefined
-              }
-            >
-              {isLoadingUsage ? 'Loading…' : `${usage?.remaining ?? 0} left`}
-            </div>
-          </div>
-          <Link href="/dashboard?plan=pro" prefetch>
-            <Button
-              className="h-9 rounded-full px-4 text-sm font-medium text-white bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-500 hover:from-rose-400 hover:via-fuchsia-400 hover:to-indigo-400 focus-visible:ring-2 focus-visible:ring-rose-400/40"
-            >
-              <span className="hidden sm:inline">Upgrade to Pro</span>
-              <span className="sm:hidden">Upgrade</span>
-            </Button>
-          </Link>
+          {isAuthed && (
+            <>
+              <div className="rounded-full p-[1px] bg-gradient-to-r from-emerald-400 via-sky-500 to-violet-500">
+                <div
+                  className="rounded-full px-3 py-1 text-xs bg-neutral-900/80 text-white/90"
+                  title={
+                    !isLoadingUsage && usage?.remaining === 0 && usage?.resetsAt
+                      ? `Resets on ${new Date(usage.resetsAt).toLocaleDateString()}`
+                      : undefined
+                  }
+                >
+                  {isLoadingUsage ? 'Loading…' : `${usage?.remaining ?? 0} left`}
+                </div>
+              </div>
+              <Link href="/dashboard?plan=pro" prefetch>
+                <Button
+                  className="h-9 rounded-full px-4 text-sm font-medium text-white bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-500 hover:from-rose-400 hover:via-fuchsia-400 hover:to-indigo-400 focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                >
+                  <span className="hidden sm:inline">Upgrade to Pro</span>
+                  <span className="sm:hidden">Upgrade</span>
+                </Button>
+              </Link>
+            </>
+          )}
           <DropdownMenu>
-            <DropdownMenuTrigger className="rounded-full focus:outline-none">
-              <div className="flex items-center gap-3">
+            <DropdownMenuTrigger className="rounded-full focus:outline-none cursor-pointer">
+              <div className="flex items-center gap-2">
                 <Avatar className="h-8 w-8">
                   <AvatarImage alt={email ?? "avatar"} />
                   <AvatarFallback>SF</AvatarFallback>
                 </Avatar>
-                <span className="hidden sm:block text-sm text-white/80">{email ?? "Account"}</span>
+                <ChevronDown className="h-4 w-4 text-white/70" />
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent
