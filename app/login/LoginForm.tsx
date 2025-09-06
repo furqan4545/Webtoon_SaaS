@@ -61,8 +61,8 @@ export default function LoginForm() {
       if (response.error) {
         setServerError(response.message);
       } else {
-        // Redirect to the dashboard page
-        router.push("/dashboard");
+        // Redirect to home page (match Google Sign-In behavior)
+        router.push("/");
       }
     } catch (error) {
       setServerError("An unexpected error occurred. Please try again.");
