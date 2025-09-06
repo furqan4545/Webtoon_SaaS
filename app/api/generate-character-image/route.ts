@@ -54,14 +54,14 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     // Quota pre-check via profiles snapshot (no internal HTTP)
     const now = new Date();
-    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
     const { data: prof } = await supabase
       .from('profiles')
       .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
       .eq('user_id', user.id)
       .single();
     const base = Number.isFinite(prof?.monthly_base_limit) ? Number(prof?.monthly_base_limit) : (prof?.plan === 'pro' ? 500 : 50);
-    const monthIsCurrent = prof?.month_start && String(prof.month_start).startsWith(firstOfMonth);
+    const start = prof?.month_start ? new Date(String(prof.month_start)) : null;
+    const monthIsCurrent = !!start && start.getUTCFullYear() === now.getUTCFullYear() && start.getUTCMonth() === now.getUTCMonth();
     const bonus = monthIsCurrent ? (Number(prof?.monthly_bonus_credits) || 0) : 0;
     const used = monthIsCurrent ? (Number(prof?.monthly_used) || 0) : 0;
     const remaining = Math.max(0, Math.max(0, base + bonus) - used);
@@ -80,12 +80,28 @@ export async function POST(request: NextRequest) {
       },
     ];
 
+    // Retry on transient Gemini errors
+    const maxAttempts = 3;
+    const attemptIsRetriable = (status: any) => {
+      const s = Number(status);
+      return status === 429 || (Number.isFinite(s) && s >= 500);
+    };
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
     let response: any;
-    try {
-      response = await ai.models.generateContent({ model, config, contents });
-    } catch (genErr: any) {
-      console.error('gemini generate error', genErr?.message || genErr);
-      return NextResponse.json({ error: 'AI generation failed', details: genErr?.message || 'unknown' }, { status: 502 });
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        response = await ai.models.generateContent({ model, config, contents });
+        break;
+      } catch (genErr: any) {
+        const status = genErr?.status || genErr?.code || 500;
+        console.error(`[character-image] attempt ${attempt} failed`, { status, message: genErr?.message });
+        if (attempt < maxAttempts && attemptIsRetriable(status)) {
+          await sleep(400 * attempt);
+          continue;
+        }
+        return NextResponse.json({ error: 'AI generation failed', details: genErr?.message || 'unknown' }, { status: 502 });
+      }
     }
 
     // Extract inline image data (base64) from candidates
