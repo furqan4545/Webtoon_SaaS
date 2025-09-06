@@ -67,7 +67,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
     }
 
-    const response = await ai.models.generateContent({ model, config, contents: [{ role: 'user', parts: [{ text: prompt }] }] });
+    // Retry on transient Gemini errors
+    const maxAttempts = 3;
+    const attemptIsRetriable = (status: any) => {
+      const s = Number(status);
+      return status === 429 || (Number.isFinite(s) && s >= 500);
+    };
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    let response: any;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        response = await ai.models.generateContent({ model, config, contents: [{ role: 'user', parts: [{ text: prompt }] }] });
+        break;
+      } catch (genErr: any) {
+        const status = genErr?.status || genErr?.code || 500;
+        console.error(`[character-newArt] attempt ${attempt} failed`, { status, message: genErr?.message });
+        if (attempt < maxAttempts && attemptIsRetriable(status)) {
+          await sleep(400 * attempt);
+          continue;
+        }
+        return NextResponse.json({ error: 'AI generation failed', details: genErr?.message || 'unknown' }, { status: 502 });
+      }
+    }
     const r: any = response as any;
     const parts: any[] = r?.candidates?.[0]?.content?.parts || [];
     const imgPart = parts.find((p: any) => p?.inlineData?.data);
