@@ -29,13 +29,12 @@ export default function WebtoonPreview() {
 
   return (
     <div style={{ background: '#ffffff' }} className="min-h-screen w-full">
-      <div className="mx-auto max-w-[720px] py-8 px-4">
-        {images.map((src, idx) => (
-          <div key={idx} className="mb-6">
-            <img src={src} alt={`Panel ${idx + 1}`} className="w-full rounded-md" />
-          </div>
-        ))}
-        {images.length === 0 && (
+      <div className="mx-auto max-w-[740px] py-8 px-4">
+        {images.length > 0 ? (
+          images.map((src, idx) => (
+            <img key={idx} src={src} alt={`Panel ${idx + 1}`} className="w-full mb-6" />
+          ))
+        ) : (
           <div className="text-center text-black/70">No panels to preview.</div>
         )}
       </div>

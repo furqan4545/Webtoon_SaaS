@@ -117,6 +117,11 @@ export default function Header() {
     router.replace("/login");
   };
 
+  // Hide header entirely on preview page
+  if (pathname && pathname.startsWith('/webtoon-builder/preview')) {
+    return null;
+  }
+
   return (
     <header className="sticky top-0 z-30 w-full border-b border-white/10 bg-gradient-to-b from-black/40 to-transparent backdrop-blur">
       {/* top progress bar on navigate */}
