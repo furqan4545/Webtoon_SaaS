@@ -143,21 +143,21 @@ export default function ChooseArtStyle() {
           {/* Quick Style Options */}
           <div>
             <h2 className="text-xl font-semibold mb-4 text-white">Quick Style Options</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               {/* Custom style card (default active) */}
               <button
                 key="custom"
                 onClick={() => setSelectedStyleId('custom')}
                 className={
-                  `text-left border rounded-md p-4 cursor-pointer transition-colors ${
+                  `text-left border rounded-md p-3 cursor-pointer transition-colors ${
                     selectedStyleId === 'custom'
                       ? 'bg-gradient-to-r from-fuchsia-500/20 to-indigo-400/20 border-fuchsia-500/40 ring-2 ring-fuchsia-500/50'
                       : 'border-white/10 bg-white/5 hover:bg-white/10'
                   }`
                 }
               >
-                <div className="font-semibold mb-1">My Custom Style</div>
-                <div className="text-sm text-white/70">Write your own style in the box above</div>
+                <div className="text-sm font-semibold mb-1">My Custom Style</div>
+                <div className="text-xs text-white/70">Write your own style in the box above</div>
               </button>
 
               {artStyles.map((s) => {
@@ -167,15 +167,15 @@ export default function ChooseArtStyle() {
                     key={s.id}
                     onClick={() => selectPreset(s.id, s.description)}
                     className={
-                      `text-left border rounded-md p-4 cursor-pointer transition-colors ${
+                      `text-left border rounded-md p-3 cursor-pointer transition-colors ${
                         selected
                           ? 'bg-gradient-to-r from-fuchsia-500/20 to-indigo-400/20 border-fuchsia-500/40 ring-2 ring-fuchsia-500/50'
                           : 'border-white/10 bg-white/5 hover:bg-white/10'
                       }`
                     }
                   >
-                    <div className="font-semibold mb-1">{s.title}</div>
-                    <div className="text-sm text-white/70">{s.description}</div>
+                    <div className="text-sm font-semibold mb-1">{s.title}</div>
+                    <div className="text-xs text-white/70">{s.description}</div>
                   </button>
                 );
               })}
