@@ -36,6 +36,7 @@ const artStyles = [
 export default function ChooseArtStyle() {
   const [styleText, setStyleText] = useState<string>("");
   const [charCount, setCharCount] = useState(0);
+  const [selectedStyleId, setSelectedStyleId] = useState<string>('custom');
   const router = useRouter();
   const supabase = createClient();
 
@@ -56,11 +57,24 @@ export default function ChooseArtStyle() {
     })();
   }, []);
 
-  const appendStyle = (text: string) => {
-    const next = styleText ? `${styleText}\n${text}` : text;
-    setStyleText(next);
-    setCharCount(next.length);
+  // Selecting a preset overrides the textarea content instead of appending
+  const selectPreset = (id: string, text: string) => {
+    setStyleText(text);
+    setCharCount(text.length);
+    setSelectedStyleId(id);
   };
+
+  // If user types, treat as custom style and reflect selection
+  const handleTextChange = (value: string) => {
+    setStyleText(value);
+    setCharCount(value.length);
+    setSelectedStyleId('custom');
+  };
+
+  // If textarea becomes empty, auto-select custom card
+  useEffect(() => {
+    if (!styleText.trim()) setSelectedStyleId('custom');
+  }, [styleText]);
 
   const handleContinue = async () => {
     const text = styleText.trim();
@@ -119,7 +133,7 @@ export default function ChooseArtStyle() {
               <Textarea
                 placeholder={"Describe your desired art style in detail...\n\nExamples:\n• Korean webtoon style with clean lines, soft shading, and vibrant colors\n• Dark gothic style with dramatic shadows and muted color palette\n• Watercolor style with soft edges and pastel colors\n• Pixel art style reminiscent of 16-bit video games\n• Minimalist line art with bold geometric shapes\n• Studio Ghibli inspired with lush backgrounds and expressive characters"}
                 value={styleText}
-                onChange={(e) => { setStyleText(e.target.value); setCharCount(e.target.value.length); }}
+                onChange={(e) => handleTextChange(e.target.value)}
                 className="h-48 bg-black/20 border-white/10 text-white placeholder:text-white/50"
               />
               <div className="mt-2 text-xs text-white/60">{charCount} characters</div>
@@ -130,12 +144,41 @@ export default function ChooseArtStyle() {
           <div>
             <h2 className="text-xl font-semibold mb-4 text-white">Quick Style Options</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {artStyles.map((s) => (
-                <button key={s.id} onClick={() => appendStyle(s.description)} className="text-left border border-white/10 bg-white/5 hover:bg-white/10 rounded-md p-4 cursor-pointer">
-                  <div className="font-semibold mb-1">{s.title}</div>
-                  <div className="text-sm text-white/70">{s.description}</div>
-                </button>
-              ))}
+              {/* Custom style card (default active) */}
+              <button
+                key="custom"
+                onClick={() => setSelectedStyleId('custom')}
+                className={
+                  `text-left border rounded-md p-4 cursor-pointer transition-colors ${
+                    selectedStyleId === 'custom'
+                      ? 'bg-gradient-to-r from-fuchsia-500/20 to-indigo-400/20 border-fuchsia-500/40 ring-2 ring-fuchsia-500/50'
+                      : 'border-white/10 bg-white/5 hover:bg-white/10'
+                  }`
+                }
+              >
+                <div className="font-semibold mb-1">My Custom Style</div>
+                <div className="text-sm text-white/70">Write your own style in the box above</div>
+              </button>
+
+              {artStyles.map((s) => {
+                const selected = selectedStyleId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => selectPreset(s.id, s.description)}
+                    className={
+                      `text-left border rounded-md p-4 cursor-pointer transition-colors ${
+                        selected
+                          ? 'bg-gradient-to-r from-fuchsia-500/20 to-indigo-400/20 border-fuchsia-500/40 ring-2 ring-fuchsia-500/50'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                      }`
+                    }
+                  >
+                    <div className="font-semibold mb-1">{s.title}</div>
+                    <div className="text-sm text-white/70">{s.description}</div>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -150,7 +193,7 @@ export default function ChooseArtStyle() {
             </Button>
             <Button
               onClick={handleContinue}
-              disabled={!styleText.trim()}
+              disabled={styleText.trim().length < 6}
               className="flex-1 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95 disabled:opacity-50"
             >
               Continue to Character Creation →
