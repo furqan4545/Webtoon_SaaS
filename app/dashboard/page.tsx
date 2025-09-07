@@ -41,13 +41,13 @@ export default async function Dashboard() {
                 Perfect! You already have your story written or outlined. We'll help you visualize your scenes and bring your characters to life with AI‑generated artwork.
               </CardDescription>
               <ul className="mx-auto max-w-md list-disc space-y-2 text-sm text-white/80 text-left pl-5 mb-8">
-                <li>Import your existing story</li>
+                <li>Bring your existing story</li>
                 <li>Break it into comic panels</li>
                 <li>Generate matching visuals</li>
               </ul>
               <div className="mt-auto w-full">
                 <Button asChild className="w-full h-12 bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white shadow-[0_8px_30px_rgba(168,85,247,0.35)] hover:opacity-95">
-                  <Link href="/import-story">Import My Story →</Link>
+                  <Link href="/import-story">I have a Story →</Link>
                 </Button>
               </div>
             </Card>
