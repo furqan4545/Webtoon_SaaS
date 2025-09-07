@@ -55,17 +55,17 @@ export async function GET(request: NextRequest) {
                 return redirect(`/import-story?projectId=${encodeURIComponent(created.id)}`);
               }
             }
-            // Existing users: go to dashboard
-            return redirect('/dashboard');
+            // Existing users: go to home
+            return redirect('/');
           } catch {
-            return redirect('/dashboard');
+            return redirect('/');
           }
         }
       } catch (e) {
         console.error('profiles upsert error (confirm):', e);
       }
       // Fallback
-      redirect('/dashboard');
+      redirect('/');
     }
   }
 

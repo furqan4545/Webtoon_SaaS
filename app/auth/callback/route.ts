@@ -55,8 +55,8 @@ export async function GET(request: Request) {
                 redirectPath = '/dashboard';
               }
             } else {
-              // Existing users land on dashboard
-              redirectPath = '/dashboard';
+              // Existing users land on home
+              redirectPath = '/';
             }
           } catch {
             // On any error, default to dashboard
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
 
           // If auth flow provided an explicit next and user is not first-time, honor it
           // First-time users always go to import-story
-          const finalPath = redirectPath || '/dashboard';
+          const finalPath = redirectPath || '/';
 
           const forwardedHost = request.headers.get("x-forwarded-host");
           const isLocalEnv = process.env.NODE_ENV === "development";
