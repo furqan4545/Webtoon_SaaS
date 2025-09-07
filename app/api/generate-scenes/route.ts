@@ -32,8 +32,12 @@ export async function POST(request: NextRequest) {
       `You are a professional storyboard artist. Split the story into clear SCENES and return JSON ONLY.`
     );
 
+    // const userPrompt = sanitize(
+    //   `SOURCE STORY (full text):\n${story}\n\nINSTRUCTIONS:\n- Break the story into 6-12 scenes based on location/time/goal shifts.\n- For each scene, produce:\nStory_Text: 1-3 sentences summarizing what happens in this scene (pulled/paraphrased from the story)\nDescription: 2-4 sentences for AI image generation that specify camera angle, shot type, lighting, key visuals, character positioning/expressions, and environment details.\n\n- Return STRICT JSON only (UTF-8, no trailing commas, no markdown).\nOUTPUT FORMAT (JSON ONLY):\n{\n  "story_title": "",\n  "total_scenes": <NUM OF SCENES>,\n  "scenes": {\n        "scene_1" : {"Story_Text" : "", "Scene_Description": "" },\n        "scene_2": {"Story_Text" : "", "Scene_Description": "" }\n  }\n}`
+    // );
+
     const userPrompt = sanitize(
-      `SOURCE STORY (full text):\n${story}\n\nINSTRUCTIONS:\n- Break the story into 6-12 scenes based on location/time/goal shifts.\n- For each scene, produce:\nStory_Text: 1-3 sentences summarizing what happens in this scene (pulled/paraphrased from the story)\nDescription: 2-4 sentences for AI image generation that specify camera angle, shot type, lighting, key visuals, character positioning/expressions, and environment details.\n\n- Return STRICT JSON only (UTF-8, no trailing commas, no markdown).\nOUTPUT FORMAT (JSON ONLY):\n{\n  "story_title": "",\n  "total_scenes": <NUM OF SCENES>,\n  "scenes": {\n        "scene_1" : {"Story_Text" : "", "Scene_Description": "" },\n        "scene_2": {"Story_Text" : "", "Scene_Description": "" }\n  }\n}`
+      `SOURCE STORY (full text):\n${story}\n\nINSTRUCTIONS:\n- Break the story into multiple scenes depending on the length of the story. The story should be minimum 6 scenes and maximum could be 24, break scenes based on location/time/goal shifts.\n- For each scene, produce:\nStory_Text: 2-4 sentences about what happened in this scene (pulled from the story)\nDescription: 1-2 sentences for AI image generation that specify  shot type, lighting, key visuals, character positioning/expressions, and environment details, we need to make sure character is not looking at camera.. it should be webtoon story type shot. \n\n- Return STRICT JSON only (UTF-8, no trailing commas, no markdown).\nOUTPUT FORMAT (JSON ONLY):\n{\n  "story_title": "",\n  "total_scenes": <NUM OF SCENES>,\n  "scenes": {\n        "scene_1" : {"Story_Text" : "", "Scene_Description": "" },\n        "scene_2": {"Story_Text" : "", "Scene_Description": "" }\n  }\n}`
     );
 
     const completion = await openai.chat.completions.create({
