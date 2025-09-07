@@ -122,6 +122,16 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Always show hand cursor for interactive elements and their children */
+  a[href], a[href] *,
+  button:not(:disabled), button:not(:disabled) *,
+  [role="button"], [role="button"] *,
+  input[type="button"], input[type="submit"], input[type="reset"],
+  summary, select,
+  label[for],
+  [data-slot="stepper-trigger"], [data-slot="stepper-trigger"] * {
+    cursor: pointer;
+  }
 }
 
 /* Animated gradient utilities for chat busy state */

@@ -476,7 +476,7 @@ export default function WebtoonBuilder() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
-      <main className="mx-auto max-w-6xl px-4 py-8 lg:pr-[460px]">
+      <main className="mx-auto max-w-[1600px] px-4 py-8 lg:pr-[460px]">
         <div className="flex items-center gap-3 mb-6">
           <Button
             variant="outline"

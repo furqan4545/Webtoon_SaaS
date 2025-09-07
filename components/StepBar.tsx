@@ -57,17 +57,19 @@ export default function StepBar({ currentStep, className }: StepBarProps) {
           {STEPS.map((s, index) => (
             <StepperItem key={s.href} step={index + 1} className="relative flex-1 items-start">
               <StepperTrigger
-                className="flex flex-col gap-1.5 text-left"
+                className="flex flex-col items-center gap-2 text-center"
                 onClick={(e) => {
                   e.preventDefault();
                   if (pathname !== s.href) router.push(s.href);
                 }}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center gap-2">
                   <StepperIndicator>{index + 1}</StepperIndicator>
-                  <StepperTitle>{s.title}</StepperTitle>
                 </div>
-                <StepperDescription>{s.description}</StepperDescription>
+                <div className="leading-tight">
+                  <StepperTitle>{s.title}</StepperTitle>
+                  <StepperDescription>{s.description}</StepperDescription>
+                </div>
               </StepperTrigger>
 
               {STEPS.length > index + 1 && (
