@@ -137,11 +137,6 @@ export default function AnalyzingStory() {
           {/* Spinner + dotted animation */}
           <div className="mb-6 flex flex-col items-center gap-3">
             <div className="w-12 h-12 border-4 border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin"></div>
-            <div className="flex gap-2" aria-hidden>
-              <span className="inline-block h-2 w-2 rounded-full bg-white/60 animate-pulse [animation-delay:0ms]"></span>
-              <span className="inline-block h-2 w-2 rounded-full bg-white/60 animate-pulse [animation-delay:150ms]"></span>
-              <span className="inline-block h-2 w-2 rounded-full bg-white/60 animate-pulse [animation-delay:300ms]"></span>
-            </div>
           </div>
           
           {/* Title */}
