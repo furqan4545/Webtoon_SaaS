@@ -10,6 +10,7 @@ import Link from "next/link";
 import { toast } from "@/hooks/use-toast";
 import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
 import { Info } from "lucide-react";
+import StepBar from "@/components/StepBar";
 
 interface Character {
   id: string;
@@ -214,6 +215,8 @@ export default function GenerateCharacters() {
           <h1 className="text-3xl font-bold mb-2">Generate your webtoon characters</h1>
           <p className="text-white/70">What do your characters look like?</p>
         </div>
+
+        <StepBar currentStep={3} className="mb-6" />
 
         {/* Character Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">

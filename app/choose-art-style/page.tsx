@@ -8,6 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/utils/supabase/client";
+import StepBar from "@/components/StepBar";
 
 const artStyles = [
   {
@@ -123,6 +124,8 @@ export default function ChooseArtStyle() {
           <h1 className="text-3xl font-bold mb-2">Choose Your Art Style</h1>
           <p className="text-white/70">Select the visual style for your webtoon characters and scenes</p>
         </div>
+
+        <StepBar currentStep={2} className="mb-6" />
 
         {/* Top description card */}
         <div className="space-y-8">

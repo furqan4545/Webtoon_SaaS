@@ -8,6 +8,7 @@ import ChangeArtStyleDialog from "@/components/ChangeArtStyleDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
 import { Info } from "lucide-react";
+import StepBar from "@/components/StepBar";
 
 interface SceneItem {
   id: string;
@@ -506,6 +507,8 @@ export default function WebtoonBuilder() {
             />
           </div>
         </div>
+        <StepBar currentStep={4} className="mb-6" />
+
         {loading && (
           <div className="flex flex-col items-center mb-6">
             <div className="w-10 h-10 border-4 border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin"></div>

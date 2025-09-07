@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Lightbulb } from "lucide-react";
 import Link from "next/link";
+import StepBar from "@/components/StepBar";
 
 export default function ImportStory() {
   const [storyText, setStoryText] = useState("");
@@ -102,6 +103,8 @@ export default function ImportStory() {
           <h1 className="text-3xl font-bold mb-2">Bring Your Story</h1>
           <p className="text-white/70">Upload a document or paste your story text</p>
         </div>
+
+        <StepBar currentStep={1} className="mb-6" />
 
         {/* Main Content */}
         <div className="space-y-8">
