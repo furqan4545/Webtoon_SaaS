@@ -166,7 +166,7 @@ export default function Header() {
                       : undefined
                   }
                 >
-                  {isLoadingUsage ? 'Loading…' : `${usage?.remaining ?? 0} left`}
+                  {isLoadingUsage ? 'Loading…' : `${usage?.remaining ?? 0} Credits left`}
                 </div>
               </div>
               <Link href="/dashboard?plan=pro" prefetch>

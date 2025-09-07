@@ -99,7 +99,7 @@ export default function ImportStory() {
             <ArrowLeft className="h-4 w-4" />
             Back
           </Link>
-          <h1 className="text-3xl font-bold mb-2">Import Your Story</h1>
+          <h1 className="text-3xl font-bold mb-2">Bring Your Story</h1>
           <p className="text-white/70">Upload a document or paste your story text</p>
         </div>
 
@@ -107,9 +107,6 @@ export default function ImportStory() {
         <div className="space-y-8">
           {/* Story Input Card */}
           <Card className="border-white/10 bg-white/5 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-xl text-white">Paste Your Story Text</CardTitle>
-            </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
