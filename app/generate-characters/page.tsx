@@ -247,7 +247,7 @@ export default function GenerateCharacters() {
                 </div>
                 <div className="bg-white/5 border border-white/10 rounded-md p-3">
                   <div className="text-sm text-white/80 mb-1">Art Style</div>
-                  <div className="text-sm text-white/70 whitespace-pre-wrap">{character.artStyle || ''}</div>
+                  <div className="h-24 overflow-y-auto text-sm text-white/70 whitespace-pre-wrap pr-2">{character.artStyle || ''}</div>
                 </div>
                 <div className="flex gap-2">
                   <Button
