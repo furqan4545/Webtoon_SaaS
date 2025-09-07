@@ -22,6 +22,17 @@ export default function ImportStory() {
   const [extractError, setExtractError] = useState<string | null>(null);
   const uploadRef = useRef<HTMLInputElement | null>(null);
 
+  // Persist projectId from query param for freshly created first-time projects
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const pid = url.searchParams.get('projectId');
+      if (pid) {
+        sessionStorage.setItem('currentProjectId', pid);
+      }
+    } catch {}
+  }, []);
+
   // Prefetch next route for snappy navigation
   useEffect(() => {
     try {

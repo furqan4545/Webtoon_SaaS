@@ -30,20 +30,62 @@ export async function GET(request: Request) {
             const minimal = { user_id: user.id, month_start: firstOfMonth };
             await supabase.from('profiles').upsert(minimal, { onConflict: 'user_id' });
           }
+
+          // Determine first-time user and create initial project if needed
+          let redirectPath: string | null = null;
+          try {
+            const { data: existing } = await supabase
+              .from('projects')
+              .select('id')
+              .eq('user_id', user.id)
+              .limit(1);
+            const hasProjects = Array.isArray(existing) && existing.length > 0;
+            if (!hasProjects) {
+              const nowIso = new Date().toISOString();
+              const { data: created, error: createErr } = await supabase
+                .from('projects')
+                .insert([{ user_id: user.id, title: 'Project 1', status: 'draft', created_at: nowIso, updated_at: nowIso }])
+                .select('id')
+                .single();
+              if (!createErr && created?.id) {
+                // Force first-time users to import-story
+                redirectPath = `/import-story?projectId=${encodeURIComponent(created.id)}`;
+              } else {
+                // If create failed, fall back to dashboard
+                redirectPath = '/dashboard';
+              }
+            } else {
+              // Existing users land on dashboard
+              redirectPath = '/dashboard';
+            }
+          } catch {
+            // On any error, default to dashboard
+            redirectPath = '/dashboard';
+          }
+
+          // If auth flow provided an explicit next and user is not first-time, honor it
+          // First-time users always go to import-story
+          const finalPath = redirectPath || '/dashboard';
+
+          const forwardedHost = request.headers.get("x-forwarded-host");
+          const isLocalEnv = process.env.NODE_ENV === "development";
+          if (isLocalEnv) {
+            return NextResponse.redirect(`${origin}${finalPath}`);
+          } else if (forwardedHost) {
+            return NextResponse.redirect(`https://${forwardedHost}${finalPath}`);
+          } else {
+            return NextResponse.redirect(`${origin}${finalPath}`);
+          }
         }
       } catch (e) {
         console.error('profiles upsert error:', e);
       }
-      const forwardedHost = request.headers.get("x-forwarded-host"); // original origin before load balancer
+      // If we didn't return above (no user?), fall back to next
+      const forwardedHost = request.headers.get("x-forwarded-host");
       const isLocalEnv = process.env.NODE_ENV === "development";
-      if (isLocalEnv) {
-        // we can be sure that there is no load balancer in between, so no need to watch for X-Forwarded-Host
-        return NextResponse.redirect(`${origin}${next}`);
-      } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`);
-      } else {
-        return NextResponse.redirect(`${origin}${next}`);
-      }
+      if (isLocalEnv) return NextResponse.redirect(`${origin}${next}`);
+      if (forwardedHost) return NextResponse.redirect(`https://${forwardedHost}${next}`);
+      return NextResponse.redirect(`${origin}${next}`);
     }
   }
 

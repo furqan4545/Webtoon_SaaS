@@ -35,12 +35,37 @@ export async function GET(request: NextRequest) {
             console.error('profiles upsert (confirm) failed:', upErr?.message);
             await supabase.from('profiles').upsert({ user_id: user.id, month_start: firstOfMonth }, { onConflict: 'user_id' });
           }
+          // Determine if first-time user and create initial project
+          try {
+            const { data: existing } = await supabase
+              .from('projects')
+              .select('id')
+              .eq('user_id', user.id)
+              .limit(1);
+            const hasProjects = Array.isArray(existing) && existing.length > 0;
+            if (!hasProjects) {
+              const nowIso = new Date().toISOString();
+              const { data: created } = await supabase
+                .from('projects')
+                .insert([{ user_id: user.id, title: 'Project 1', status: 'draft', created_at: nowIso, updated_at: nowIso }])
+                .select('id')
+                .single();
+              if (created?.id) {
+                // First-time: go straight to import-story
+                return redirect(`/import-story?projectId=${encodeURIComponent(created.id)}`);
+              }
+            }
+            // Existing users: go to dashboard
+            return redirect('/dashboard');
+          } catch {
+            return redirect('/dashboard');
+          }
         }
       } catch (e) {
         console.error('profiles upsert error (confirm):', e);
       }
-      // redirect user to specified redirect URL or root of app
-      redirect(next);
+      // Fallback
+      redirect('/dashboard');
     }
   }
 
