@@ -315,8 +315,21 @@ export default function EditPanelsPage() {
                         id={`overlay-edit-${o.id}`}
                         contentEditable
                         suppressContentEditableWarning
-                        className="absolute inset-0 p-3 text-black text-center flex items-center justify-center whitespace-pre-wrap break-words overflow-hidden outline-none"
-                        style={{ transform: 'none', direction: 'ltr' as any, unicodeBidi: 'plaintext' as any }}
+                        className="absolute inset-0 p-3 text-black text-center whitespace-pre-wrap break-words overflow-hidden outline-none"
+                        dir="ltr"
+                        style={{
+                          transform: 'none',
+                          direction: 'ltr',
+                          unicodeBidi: 'isolate',
+                          writingMode: 'horizontal-tb',
+                          textAlign: 'center',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: '100%',
+                          minHeight: '100%',
+                          lineHeight: 1.2,
+                        }}
                         onInput={(e) => {
                           const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
                           setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
@@ -327,7 +340,23 @@ export default function EditPanelsPage() {
                         dangerouslySetInnerHTML={{ __html: (o.text || '').replace(/\n/g, '<br/>') }}
                       />
                     ) : (
-                      <div className="absolute inset-0 p-3 text-black text-center flex items-center justify-center whitespace-pre-wrap break-words overflow-hidden pointer-events-none" style={{ transform: 'none', direction: 'ltr' as any, unicodeBidi: 'plaintext' as any }}>
+                      <div
+                        className="absolute inset-0 p-3 text-black text-center whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
+                        dir="ltr"
+                        style={{
+                          transform: 'none',
+                          direction: 'ltr',
+                          unicodeBidi: 'isolate',
+                          writingMode: 'horizontal-tb',
+                          textAlign: 'center',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: '100%',
+                          minHeight: '100%',
+                          lineHeight: 1.2,
+                        }}
+                      >
                         <span>{o.text || ''}</span>
                       </div>
                     )}
