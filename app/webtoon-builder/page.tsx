@@ -605,13 +605,8 @@ export default function WebtoonBuilder() {
                         <div className="text-white/80">{scene.storyText}</div>
                       </div>
                       <div className="pt-2">
-                        {scene.isGenerating && (
-                          <div className="mb-2 inline-flex items-center gap-2 text-xs bg-white/10 text-white px-2 py-1 rounded-full">
-                            <div className="h-3 w-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                            {scene.generationPhase === 'sfx' ? 'Adding Sound Effects' : 'Generating Image'}
-                          </div>
-                        )}
-                        <Button
+                        <div className="flex items-center gap-2">
+                          <Button
                           className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white disabled:opacity-60 disabled:cursor-not-allowed"
                           disabled={scene.isGenerating || (credits && credits.remaining <= 0)}
                           title={credits && credits.remaining <= 0 && credits.resetsAt ? `Out of credits. Resets on ${new Date(credits.resetsAt).toLocaleDateString()}` : undefined}
@@ -628,7 +623,14 @@ export default function WebtoonBuilder() {
                               {credits && credits.remaining <= 0 ? 'Out of credits' : 'Generate'}
                             </>
                           )}
-                        </Button>
+                          </Button>
+                          {scene.isGenerating && (
+                            <div className={`inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full ${scene.generationPhase === 'sfx' ? 'bg-gradient-to-r from-sky-400 to-blue-400 text-black' : 'bg-white/10 text-white'}`}>
+                              <div className="h-3 w-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              {scene.generationPhase === 'sfx' ? 'Adding Sound Effects' : 'Generating Image'}
+                            </div>
+                          )}
+                        </div>
                         {credits && credits.remaining <= 0 && (
                           <div className="mt-1 flex items-center gap-1 text-xs text-white/70">
                             <Info className="h-3.5 w-3.5" />
