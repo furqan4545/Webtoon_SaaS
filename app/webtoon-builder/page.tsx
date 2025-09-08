@@ -16,6 +16,7 @@ interface SceneItem {
   description: string;
   imageDataUrl?: string;
   isGenerating?: boolean;
+  generationPhase?: 'image' | 'sfx' | null;
 }
 
 export default function WebtoonBuilder() {
@@ -96,7 +97,7 @@ export default function WebtoonBuilder() {
   };
 
   const handleGenerateScene = async (index: number, overrideDescription?: string) => {
-    setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true, generationPhase: 'image' } : s));
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
       const characterImages: Array<{ name: string; dataUrl: string }> = pickSafeRefsForPayload(refImages);
@@ -121,6 +122,8 @@ export default function WebtoonBuilder() {
       // Immediately chain sound-effects enhancement
       let secondSucceeded = false;
       try {
+        // Switch phase to SFX while the second call runs
+        setScenes(prev => prev.map((s, i) => i === index ? { ...s, generationPhase: 'sfx' } : s));
         const res2 = await fetch('/api/add-image-soundEffects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -141,7 +144,7 @@ export default function WebtoonBuilder() {
       }
 
       // Finalize UI state and credits
-      setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false, generationPhase: null } : s));
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
       setCredits((prev) => {
         if (!prev) return prev;
@@ -151,7 +154,7 @@ export default function WebtoonBuilder() {
       window.dispatchEvent(new Event('credits:refresh'));
     } catch (e) {
       console.error(e);
-      setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false, generationPhase: null } : s));
     }
   };
 
@@ -602,6 +605,12 @@ export default function WebtoonBuilder() {
                         <div className="text-white/80">{scene.storyText}</div>
                       </div>
                       <div className="pt-2">
+                        {scene.isGenerating && (
+                          <div className="mb-2 inline-flex items-center gap-2 text-xs bg-white/10 text-white px-2 py-1 rounded-full">
+                            <div className="h-3 w-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                            {scene.generationPhase === 'sfx' ? 'Adding Sound Effects' : 'Generating Image'}
+                          </div>
+                        )}
                         <Button
                           className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white disabled:opacity-60 disabled:cursor-not-allowed"
                           disabled={scene.isGenerating || (credits && credits.remaining <= 0)}
