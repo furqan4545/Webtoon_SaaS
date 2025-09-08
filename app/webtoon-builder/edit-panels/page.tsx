@@ -26,6 +26,7 @@ type OverlayItem = {
   height: number;
   text: string;
   isEditing: boolean;
+  flipped: boolean;
 };
 
 export default function EditPanelsPage() {
@@ -157,6 +158,7 @@ export default function EditPanelsPage() {
         height: h,
         text: '',
         isEditing: false,
+        flipped: true,
       };
       setOverlays(prev => [...prev, item]);
     } catch {}
@@ -297,7 +299,7 @@ export default function EditPanelsPage() {
                   dragHandleClassName="overlay-handle"
                 >
                   <div className="relative w-full h-full">
-                    <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' as any, pointerEvents: 'none' }} draggable={false} />
+                    <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' as any, pointerEvents: 'none', transform: o.flipped ? 'scaleX(-1)' : 'none' }} draggable={false} />
                     {/* Full-cover drag handle; disabled while editing to allow typing */}
                     <div
                       className="overlay-handle absolute inset-0"
@@ -331,13 +333,14 @@ export default function EditPanelsPage() {
                           lineHeight: 1.2,
                         }}
                         onInput={(e) => {
-                          const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
+                          const raw = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
+                          const text = raw.replace(/\u200B/g, '');
                           setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
                         }}
                         onBlur={() => {
-                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
+                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false, text: (oo.text || '').replace(/\u200B/g, '') } : oo));
                         }}
-                        dangerouslySetInnerHTML={{ __html: (o.text || '').replace(/\n/g, '<br/>') }}
+                        dangerouslySetInnerHTML={{ __html: ((o.text && o.text.length > 0) ? o.text : '\u200B').replace(/\n/g, '<br/>') }}
                       />
                     ) : (
                       <div
