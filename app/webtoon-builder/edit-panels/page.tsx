@@ -158,7 +158,7 @@ export default function EditPanelsPage() {
         height: h,
         text: '',
         isEditing: false,
-        flipped: true,
+        flipped: false,
       };
       setOverlays(prev => [...prev, item]);
     } catch {}
@@ -299,7 +299,7 @@ export default function EditPanelsPage() {
                   dragHandleClassName="overlay-handle"
                 >
                   <div className="relative w-full h-full">
-                    <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' as any, pointerEvents: 'none', transform: o.flipped ? 'scaleX(-1)' : 'none' }} draggable={false} />
+                    <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' as any, pointerEvents: 'none', transform: 'none' }} draggable={false} />
                     {/* Full-cover drag handle; disabled while editing to allow typing */}
                     <div
                       className="overlay-handle absolute inset-0"
@@ -331,6 +331,9 @@ export default function EditPanelsPage() {
                           height: '100%',
                           minHeight: '100%',
                           lineHeight: 1.2,
+                          textOrientation: 'mixed',
+                          WebkitTextOrientation: 'mixed' as any,
+                          WebkitWritingMode: 'horizontal-tb' as any,
                         }}
                         onInput={(e) => {
                           const raw = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
@@ -358,6 +361,9 @@ export default function EditPanelsPage() {
                           height: '100%',
                           minHeight: '100%',
                           lineHeight: 1.2,
+                          textOrientation: 'mixed',
+                          WebkitTextOrientation: 'mixed' as any,
+                          WebkitWritingMode: 'horizontal-tb' as any,
                         }}
                       >
                         <span>{o.text || ''}</span>
