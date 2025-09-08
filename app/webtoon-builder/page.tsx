@@ -595,7 +595,7 @@ export default function WebtoonBuilder() {
                   <CardTitle className="text-white">Scene {i + 1}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {loading && isFirstLoad ? (
+                  {(loading || blockingFirstPanel) && isFirstLoad ? (
                     <>
                       <div className="h-5 w-32 bg-white/10 rounded animate-pulse" />
                       <div className="h-4 w-full bg-white/10 rounded animate-pulse" />
