@@ -24,6 +24,8 @@ export default function WebtoonBuilder() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasRun = useRef(false);
+  const isReloadRef = useRef(false);
+  const autoTriggeredRef = useRef(false);
   const [insertLoadingIndex, setInsertLoadingIndex] = useState<number | null>(null);
   const allImagesReady = scenes.length > 0 && scenes.every(s => !!s.imageDataUrl);
   const [selectedSceneIndex, setSelectedSceneIndex] = useState<number>(0);
@@ -112,10 +114,40 @@ export default function WebtoonBuilder() {
       });
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to generate scene image');
-      setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
+
+      // Update with the freshly generated image first
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image } : s));
+
+      // Immediately chain sound-effects enhancement
+      let secondSucceeded = false;
+      try {
+        const res2 = await fetch('/api/add-image-soundEffects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageDataUrl: data.image,
+            instruction: 'add dramatic webtoon style sound efffects based on the action in the scene',
+            projectId: projectId || undefined,
+            sceneNo: index + 1,
+          })
+        });
+        const data2 = await res2.json();
+        if (res2.ok && data2?.success && data2?.image) {
+          secondSucceeded = true;
+          setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data2.image } : s));
+        }
+      } catch (err) {
+        console.error('add-image-soundEffects failed', err);
+      }
+
+      // Finalize UI state and credits
+      setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
-      // Optimistically decrement local credits and notify header
-      setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
+      setCredits((prev) => {
+        if (!prev) return prev;
+        const decrement = secondSucceeded ? 2 : 1;
+        return { ...prev, remaining: Math.max(0, (prev.remaining || 0) - decrement) };
+      });
       window.dispatchEvent(new Event('credits:refresh'));
     } catch (e) {
       console.error(e);
@@ -165,6 +197,10 @@ export default function WebtoonBuilder() {
     hasRun.current = true;
     const run = async () => {
       try {
+        try {
+          const nav: any = (performance.getEntriesByType('navigation') as any)[0];
+          isReloadRef.current = nav?.type === 'reload';
+        } catch {}
         const projectId = sessionStorage.getItem('currentProjectId');
         if (!projectId) {
           setError('No project selected.');
@@ -296,6 +332,26 @@ export default function WebtoonBuilder() {
     };
     run();
   }, []);
+
+  // Auto-generate first scene image only on first navigation (not on reload), once per project per session
+  useEffect(() => {
+    if (loading) return;
+    if (!scenes || scenes.length === 0) return;
+    if (autoTriggeredRef.current) return;
+    if (isReloadRef.current) return;
+    if (credits && credits.remaining <= 0) return;
+    try {
+      const projectId = sessionStorage.getItem('currentProjectId');
+      if (!projectId) return;
+      const flagKey = `autoGenFirst:${projectId}`;
+      if (sessionStorage.getItem(flagKey)) return;
+      if (!scenes[0]?.imageDataUrl) {
+        autoTriggeredRef.current = true;
+        sessionStorage.setItem(flagKey, '1');
+        handleGenerateScene(0);
+      }
+    } catch {}
+  }, [loading, scenes, credits]);
 
   // Load credits for UI guard via Supabase profile
   useEffect(() => {
