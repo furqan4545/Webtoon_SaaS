@@ -67,8 +67,11 @@ export async function POST(request: NextRequest) {
     }
 
     const styleText = sanitize(artStyle || 'clean webtoon line art, flat cel shading, high mobile readability');
+    // const prompt = sanitize(
+    //   `You are generating a single WEBTOON panel for a vertical-scroll story.\nKeep the SAME PERSON as in provided references. Do NOT change hair length/color or fringe shape. Keep the same eye spacing, brow thickness, jawline, and any unique marks.\nStyle: ${styleText}. DO NOT INCLUDE TEXT.\n\nScene Description: ${sceneDescription}\nStory Text: ${storyText}`
+    // );
     const prompt = sanitize(
-      `You are generating a single WEBTOON panel for a vertical-scroll story.\nKeep the SAME PERSON as in provided references. Do NOT change hair length/color or fringe shape. Keep the same eye spacing, brow thickness, jawline, and any unique marks.\nStyle: ${styleText}. DO NOT INCLUDE TEXT.\n\nScene Description: ${sceneDescription}\nStory Text: ${storyText}`
+      `A dynamic webtoon panel, tilted diagonally across the frame, with two characters in dramatic close-up confrontation. The background fades into soft details, while the focus is on their intense expressions. Add stylized sound effects or text integrated into the scene (only english). Use bold outlines, vibrant colors, and dramatic lighting to emphasize tension and tilt the frame diagonally. Keep the composition cropped so the characters dominate the tilted frame, giving it a cinematic and immersive feeling. \nStyle: ${styleText}. DO NOT INCLUDE TEXT.\n\nScene Description: ${sceneDescription}\nStory Text: ${storyText}`
     );
 
     // parts: text + inline images for each character reference
