@@ -37,7 +37,6 @@ export default function EditPanelsPage() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [croppingImgEl, setCroppingImgEl] = useState<HTMLImageElement | null>(null);
   const [overlays, setOverlays] = useState<OverlayItem[]>([]);
-  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [bubbleSrcs, setBubbleSrcs] = useState<string[]>([]);
 
   const canvasWidth = 800;
@@ -149,7 +148,6 @@ export default function EditPanelsPage() {
         height: h,
       };
       setOverlays(prev => [...prev, item]);
-      setSelectedOverlayId(id);
     } catch {}
   };
 
@@ -272,19 +270,18 @@ export default function EditPanelsPage() {
                   bounds="parent"
                   size={{ width: o.width, height: o.height }}
                   position={{ x: o.x, y: o.y }}
-                  onDragStart={() => setSelectedOverlayId(o.id)}
                   onDragStop={(e, d) => {
                     setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, x: d.x, y: d.y } : oo));
                   }}
-                  onResizeStart={() => setSelectedOverlayId(o.id)}
                   onResizeStop={(e, dir, ref, delta, pos) => {
                     const w = Math.round(ref.offsetWidth);
                     const h = Math.round(ref.offsetHeight);
                     setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, width: w, height: h, x: pos.x, y: pos.y } : oo));
                   }}
-                  enableResizing={{ top:true, right:true, bottom:true, left:true, topRight:true, bottomRight:true, bottomLeft:true, topLeft:true }}
-                  style={{ zIndex: 20, border: selectedOverlayId === o.id ? '2px solid #38bdf8' : '2px solid transparent', borderRadius: 8 }}
-                  onMouseDown={() => setSelectedOverlayId(o.id)}
+                  lockAspectRatio
+                  enableResizing={{ top:false, right:true, bottom:true, left:false, topRight:true, bottomRight:true, bottomLeft:true, topLeft:true }}
+                  style={{ zIndex: 20, border: '2px solid transparent', borderRadius: 8 }}
+                  className="shadow-lg"
                 >
                   <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 </Rnd>
@@ -305,8 +302,7 @@ export default function EditPanelsPage() {
                   <div className="col-span-2 text-white/60 text-sm">No bubbles found in /public/DialogBubbles</div>
                 )}
               </div>
-              <div className="text-sm text-white/80 mb-2">Selected Element</div>
-              <div className="text-xs text-white/60 mb-4">{selectedOverlayId || 'None'}</div>
+              
               <div className="text-sm text-white/80 mb-2">Tips</div>
               <ul className="text-xs text-white/60 list-disc pl-5 space-y-1">
                 <li>Click a bubble to add it to the canvas.</li>
