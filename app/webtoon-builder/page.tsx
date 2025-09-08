@@ -585,10 +585,10 @@ export default function WebtoonBuilder() {
         {error && (
           <div className="text-red-400 mb-4">{error}</div>
         )}
-        {!error && !blockingFirstPanel && (
+        {!error && (
           <div className="flex gap-6">
             <div className="flex-1 space-y-6">
-            {(loading && isFirstLoad ? Array.from({ length: 4 }) : scenes).map((scene: any, i: number) => (
+            {(((loading || blockingFirstPanel) && isFirstLoad) ? Array.from({ length: 4 }) : scenes).map((scene: any, i: number) => (
               <div key={scene?.id || `skeleton_${i}`} onClick={() => !loading && setSelectedSceneIndex(i)}>
               <Card className={`border-white/10 bg-white/5 backdrop-blur-sm ${loading ? '' : 'cursor-pointer'} ${!loading && selectedSceneIndex === i ? 'ring-2 ring-fuchsia-500/60' : ''}`}>
                 <CardHeader>
@@ -753,7 +753,7 @@ export default function WebtoonBuilder() {
             </aside>
           </div>
         )}
-        {!loading && !blockingFirstPanel && (
+        {!loading && (
           <div className="flex justify-center gap-3 mt-8">
             <Button
               onClick={async () => {
