@@ -767,6 +767,17 @@ export default function WebtoonBuilder() {
                   const url = URL.createObjectURL(blob);
                   blobUrls.push(url);
                 }
+                // Handshake: wait for preview to announce readiness, then send images
+                const onReady = (e: MessageEvent) => {
+                  try {
+                    if (e.origin !== window.location.origin) return;
+                    if (e.data?.type === 'preview-ready') {
+                      (win as Window | null)?.postMessage({ type: 'webtoon-preview', images: blobUrls }, window.location.origin);
+                      window.removeEventListener('message', onReady as any);
+                    }
+                  } catch {}
+                };
+                window.addEventListener('message', onReady as any);
                 const win = window.open('/webtoon-builder/preview', '_blank');
                 // Post to the new window when ready
                 setTimeout(() => {

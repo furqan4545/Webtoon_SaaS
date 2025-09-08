@@ -18,9 +18,8 @@ export default function WebtoonPreview() {
         }
       };
       window.addEventListener('message', handler);
-      // Fallback: read blob urls from sessionStorage (short strings)
-      const raw = sessionStorage.getItem('previewBlobUrls');
-      if (raw) setImages((JSON.parse(raw) as string[]).filter(Boolean));
+      // Announce readiness to the opener for handshake-based transfer
+      try { window.opener?.postMessage({ type: 'preview-ready' }, window.location.origin); } catch {}
       return () => window.removeEventListener('message', handler);
     } catch (e) {
       // ignore
