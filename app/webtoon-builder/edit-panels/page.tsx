@@ -116,6 +116,13 @@ export default function EditPanelsPage() {
     })();
   }, []);
 
+  // Safety: ensure loader cannot get stuck indefinitely
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => setLoading(false), 15000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   // Discover dialog bubble assets from /public/DialogBubbles (PNG only)
   useEffect(() => {
     const base = '/DialogBubbles';
@@ -309,6 +316,7 @@ export default function EditPanelsPage() {
                         contentEditable
                         suppressContentEditableWarning
                         className="absolute inset-0 p-3 text-black text-center flex items-center justify-center whitespace-pre-wrap break-words overflow-hidden outline-none"
+                        style={{ transform: 'none', direction: 'ltr' as any, unicodeBidi: 'plaintext' as any }}
                         onInput={(e) => {
                           const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
                           setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
@@ -319,7 +327,7 @@ export default function EditPanelsPage() {
                         dangerouslySetInnerHTML={{ __html: (o.text || '').replace(/\n/g, '<br/>') }}
                       />
                     ) : (
-                      <div className="absolute inset-0 p-3 text-black text-center flex items-center justify-center whitespace-pre-wrap break-words overflow-hidden pointer-events-none">
+                      <div className="absolute inset-0 p-3 text-black text-center flex items-center justify-center whitespace-pre-wrap break-words overflow-hidden pointer-events-none" style={{ transform: 'none', direction: 'ltr' as any, unicodeBidi: 'plaintext' as any }}>
                         <span>{o.text || ''}</span>
                       </div>
                     )}
