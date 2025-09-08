@@ -126,7 +126,7 @@ export default function WebtoonBuilder() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             imageDataUrl: data.image,
-            instruction: 'add dramatic webtoon style sound efffects based on the action in the scene',
+            instruction: 'add webtoon style sound effects based on the whats going on in the scene. Sound effects can go out of frame as well.',
             projectId: projectId || undefined,
             sceneNo: index + 1,
           })
