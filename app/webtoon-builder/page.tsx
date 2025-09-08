@@ -756,6 +756,15 @@ export default function WebtoonBuilder() {
         {!loading && (
           <div className="flex justify-center gap-3 mt-8">
             <Button
+              onClick={() => {
+                const win = window.open('/webtoon-builder/edit-panels', '_blank');
+                try { (win as any)?.focus?.(); } catch {}
+              }}
+              className="px-8 bg-white/10 text-white hover:bg-white/20"
+            >
+              Edit Panels Layout
+            </Button>
+            <Button
               onClick={async () => {
                 if (!allImagesReady) return;
                 // Convert data URLs to blob URLs to avoid storage quota limits
