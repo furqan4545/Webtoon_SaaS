@@ -115,49 +115,13 @@ export default function EditPanelsPage() {
     })();
   }, []);
 
-  // Discover dialog bubble assets from /DialogBubbles
+  // Discover dialog bubble assets from /public/DialogBubbles (PNG only)
   useEffect(() => {
-    (async () => {
-      try {
-        const base = '/DialogBubbles';
-        // Try manifest first
-        let list: string[] | null = null;
-        try {
-          const r = await fetch(`${base}/index.json`, { cache: 'no-store' });
-          if (r.ok) {
-            const j = await r.json();
-            if (Array.isArray(j)) list = j.filter(Boolean).map((n: string) => `${base}/${n}`);
-          }
-        } catch {}
-        if (!list) {
-          const guesses: string[] = [];
-          const names = ['bubble', 'dialog', 'cloud', 'oval', 'rect', 'spiky'];
-          const exts = ['png', 'webp', 'svg'];
-          for (const name of names) {
-            for (let i = 1; i <= 16; i++) {
-              for (const ext of exts) {
-                guesses.push(`${base}/${name}-${i}.${ext}`);
-                guesses.push(`${base}/${name}_${i}.${ext}`);
-              }
-            }
-          }
-          // Probe availability quickly with HEAD/GET
-          const okList: string[] = [];
-          const maxToShow = 30;
-          for (const url of guesses) {
-            try {
-              const r = await fetch(url, { method: 'HEAD' });
-              if (r.ok) okList.push(url);
-              if (okList.length >= maxToShow) break;
-            } catch {}
-          }
-          list = okList;
-        }
-        setBubbleSrcs(list || []);
-      } catch {
-        setBubbleSrcs([]);
-      }
-    })();
+    const base = '/DialogBubbles';
+    const pngs = [
+      'bub1.png','bub2.png','bub3.png','bub4.png','bub5.png','bub6.png','bub7.png','bub8.png','bub9.png','bub10.png','bub11.png','bub12.png','bub13.png','bub14.png','bub15.png','bub16.png'
+    ];
+    setBubbleSrcs(pngs.map((n) => `${base}/${n}`));
   }, []);
 
   const addOverlayFromSrc = async (src: string) => {
