@@ -17,6 +17,15 @@ type PanelItem = {
   height: number;
 };
 
+type OverlayItem = {
+  id: string;
+  src: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export default function EditPanelsPage() {
   const router = useRouter();
   const supabase = createBrowserSupabase();
@@ -27,6 +36,9 @@ export default function EditPanelsPage() {
   const [crop, setCrop] = useState<Crop>({ unit: 'px', x: 10, y: 10, width: 200, height: 200 });
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [croppingImgEl, setCroppingImgEl] = useState<HTMLImageElement | null>(null);
+  const [overlays, setOverlays] = useState<OverlayItem[]>([]);
+  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const [bubbleSrcs, setBubbleSrcs] = useState<string[]>([]);
 
   const canvasWidth = 800;
 
@@ -102,6 +114,80 @@ export default function EditPanelsPage() {
       }
     })();
   }, []);
+
+  // Discover dialog bubble assets from /DialogBubbles
+  useEffect(() => {
+    (async () => {
+      try {
+        const base = '/DialogBubbles';
+        // Try manifest first
+        let list: string[] | null = null;
+        try {
+          const r = await fetch(`${base}/index.json`, { cache: 'no-store' });
+          if (r.ok) {
+            const j = await r.json();
+            if (Array.isArray(j)) list = j.filter(Boolean).map((n: string) => `${base}/${n}`);
+          }
+        } catch {}
+        if (!list) {
+          const guesses: string[] = [];
+          const names = ['bubble', 'dialog', 'cloud', 'oval', 'rect', 'spiky'];
+          const exts = ['png', 'webp', 'svg'];
+          for (const name of names) {
+            for (let i = 1; i <= 16; i++) {
+              for (const ext of exts) {
+                guesses.push(`${base}/${name}-${i}.${ext}`);
+                guesses.push(`${base}/${name}_${i}.${ext}`);
+              }
+            }
+          }
+          // Probe availability quickly with HEAD/GET
+          const okList: string[] = [];
+          const maxToShow = 30;
+          for (const url of guesses) {
+            try {
+              const r = await fetch(url, { method: 'HEAD' });
+              if (r.ok) okList.push(url);
+              if (okList.length >= maxToShow) break;
+            } catch {}
+          }
+          list = okList;
+        }
+        setBubbleSrcs(list || []);
+      } catch {
+        setBubbleSrcs([]);
+      }
+    })();
+  }, []);
+
+  const addOverlayFromSrc = async (src: string) => {
+    try {
+      // Probe natural dimensions to scale reasonably on 800px canvas
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = src;
+      });
+      const natW = img.naturalWidth || img.width || 300;
+      const natH = img.naturalHeight || img.height || 200;
+      const targetW = Math.min( Math.max(160, Math.round(canvasWidth * 0.5)), canvasWidth - 40 );
+      const ratio = targetW / Math.max(1, natW);
+      const w = Math.round(natW * ratio);
+      const h = Math.round(natH * ratio);
+      const id = `overlay_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+      const item: OverlayItem = {
+        id,
+        src,
+        x: Math.floor((canvasWidth - w) / 2),
+        y: 24,
+        width: w,
+        height: h,
+      };
+      setOverlays(prev => [...prev, item]);
+      setSelectedOverlayId(id);
+    } catch {}
+  };
 
   const croppingPanel = useMemo(() => panels.find(p => p.id === croppingPanelId) || null, [panels, croppingPanelId]);
 
@@ -215,18 +301,54 @@ export default function EditPanelsPage() {
                   <img src={p.src} alt={p.id} style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
                 </Rnd>
               ))}
+              {/* Overlays on top */}
+              {overlays.map((o) => (
+                <Rnd
+                  key={o.id}
+                  bounds="parent"
+                  size={{ width: o.width, height: o.height }}
+                  position={{ x: o.x, y: o.y }}
+                  onDragStart={() => setSelectedOverlayId(o.id)}
+                  onDragStop={(e, d) => {
+                    setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, x: d.x, y: d.y } : oo));
+                  }}
+                  onResizeStart={() => setSelectedOverlayId(o.id)}
+                  onResizeStop={(e, dir, ref, delta, pos) => {
+                    const w = Math.round(ref.offsetWidth);
+                    const h = Math.round(ref.offsetHeight);
+                    setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, width: w, height: h, x: pos.x, y: pos.y } : oo));
+                  }}
+                  enableResizing={{ top:true, right:true, bottom:true, left:true, topRight:true, bottomRight:true, bottomLeft:true, topLeft:true }}
+                  style={{ zIndex: 20, border: selectedOverlayId === o.id ? '2px solid #38bdf8' : '2px solid transparent', borderRadius: 8 }}
+                  onMouseDown={() => setSelectedOverlayId(o.id)}
+                >
+                  <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </Rnd>
+              ))}
             </div>
           </div>
           {/* Right: control panel matching chat panel */}
           <aside className="hidden lg:block fixed top-[64px] right-0 h-[calc(100vh-64px)] w-[420px]">
             <div className="h-full border border-white/10 bg-white/5 backdrop-blur-sm rounded-none p-4 overflow-y-auto">
-              <div className="text-sm text-white/80 mb-3">Controls</div>
-              <div className="space-y-3 text-sm text-white/70">
-                <div>Insert Text (coming soon)</div>
-                <div>Insert Dialogue PNG (coming soon)</div>
-                <div>Font family / size (coming soon)</div>
-                <div>Save Layout (coming soon)</div>
+              <div className="text-sm text-white/80 mb-3">Dialog Bubbles</div>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {bubbleSrcs.map((src, idx) => (
+                  <button key={idx} className="bg-white/10 hover:bg-white/20 rounded p-2 flex items-center justify-center" onClick={() => addOverlayFromSrc(src)}>
+                    <img src={src} alt={`bubble_${idx}`} className="max-h-24 object-contain" />
+                  </button>
+                ))}
+                {bubbleSrcs.length === 0 && (
+                  <div className="col-span-2 text-white/60 text-sm">No bubbles found in /public/DialogBubbles</div>
+                )}
               </div>
+              <div className="text-sm text-white/80 mb-2">Selected Element</div>
+              <div className="text-xs text-white/60 mb-4">{selectedOverlayId || 'None'}</div>
+              <div className="text-sm text-white/80 mb-2">Tips</div>
+              <ul className="text-xs text-white/60 list-disc pl-5 space-y-1">
+                <li>Click a bubble to add it to the canvas.</li>
+                <li>Drag edges to resize; drag inside to move.</li>
+                <li>Double-click a panel image to crop it.</li>
+              </ul>
             </div>
           </aside>
         </div>
