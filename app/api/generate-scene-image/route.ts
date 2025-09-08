@@ -70,8 +70,12 @@ export async function POST(request: NextRequest) {
     // const prompt = sanitize(
     //   `You are generating a single WEBTOON panel for a vertical-scroll story.\nKeep the SAME PERSON as in provided references. Do NOT change hair length/color or fringe shape. Keep the same eye spacing, brow thickness, jawline, and any unique marks.\nStyle: ${styleText}. DO NOT INCLUDE TEXT.\n\nScene Description: ${sceneDescription}\nStory Text: ${storyText}`
     // );
+    // const prompt = sanitize(
+    //   `A dynamic webtoon panel, tilted diagonally across the frame, drawn in dramatic manhwa style. Focus on the scene. The background should fade into soft details to keep emphasis on the characters and action. Use bold outlines, vibrant colors, and dramatic lighting to heighten tension. Add stylized motion lines, effects, or text (like ‘WHOOSH’, ‘LEAN’, etc.) if it matches the scene. Keep the composition cropped so the main subject(s) dominate the tilted frame, giving it a cinematic, immersive feeling. \nStyle: ${styleText}. DO NOT INCLUDE TEXT.\n\nScene Description: ${sceneDescription}\nStory Text: ${storyText}`
+    // );
+
     const prompt = sanitize(
-      `A dynamic webtoon panel, tilted diagonally across the frame, drawn in dramatic manhwa style. Focus on the scene. The background should fade into soft details to keep emphasis on the characters and action. Use bold outlines, vibrant colors, and dramatic lighting to heighten tension. Add stylized motion lines, effects, and also sound effects with text (like ‘WHOOSH’, ‘LEAN’, etc.) if it matches the action. Keep the composition cropped so the main subject(s) dominate the tilted frame, giving it a cinematic, immersive feeling. \nStyle: ${styleText}. DO NOT INCLUDE TEXT.\n\nScene Description: ${sceneDescription}\nStory Text: ${storyText}`
+      `A dynamic webtoon panel, tilted diagonally across the frame, drawn in dramatic manhwa style. Focus on the scene. The background should fade into soft details to keep emphasis on the characters and action. Use bold outlines, vibrant colors, and dramatic lighting to heighten tension. Add stylized motion lines, effects, or text (like ‘WHOOSH’, ‘LEAN’, etc.) if it matches the scene. Keep the composition cropped so the main subject(s) dominate the tilted frame, giving it a cinematic, immersive feeling. \nStyle: ${styleText}. DO NOT INCLUDE TEXT.\n\nScene Description: ${sceneDescription}\nStory Theme: ${storyText}`
     );
 
     // parts: text + inline images for each character reference
