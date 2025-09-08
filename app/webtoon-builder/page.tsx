@@ -41,6 +41,7 @@ export default function WebtoonBuilder() {
   const [refImages, setRefImages] = useState<Array<{ name: string; dataUrl: string }>>([]);
   const [isFirstLoad, setIsFirstLoad] = useState<boolean>(true);
   const [credits, setCredits] = useState<{ remaining: number; resetsAt?: string } | null>(null);
+  const [blockingFirstPanel, setBlockingFirstPanel] = useState<boolean>(false);
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -351,7 +352,14 @@ export default function WebtoonBuilder() {
       if (!scenes[0]?.imageDataUrl) {
         autoTriggeredRef.current = true;
         sessionStorage.setItem(flagKey, '1');
-        handleGenerateScene(0);
+        setBlockingFirstPanel(true);
+        (async () => {
+          try {
+            await handleGenerateScene(0);
+          } finally {
+            setBlockingFirstPanel(false);
+          }
+        })();
       }
     } catch {}
   }, [loading, scenes, credits]);
@@ -568,16 +576,16 @@ export default function WebtoonBuilder() {
         </div>
         <StepBar currentStep={4} className="mb-6" />
 
-        {loading && (
+        {(loading || blockingFirstPanel) && (
           <div className="flex flex-col items-center mb-6">
             <div className="w-10 h-10 border-4 border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin"></div>
-            <div className="mt-3 text-sm text-white/80">Generating scenes…</div>
+            <div className="mt-3 text-sm text-white/80">{blockingFirstPanel ? 'Generating first panel…' : 'Generating scenes…'}</div>
           </div>
         )}
         {error && (
           <div className="text-red-400 mb-4">{error}</div>
         )}
-        {!error && (
+        {!error && !blockingFirstPanel && (
           <div className="flex gap-6">
             <div className="flex-1 space-y-6">
             {(loading && isFirstLoad ? Array.from({ length: 4 }) : scenes).map((scene: any, i: number) => (
@@ -745,7 +753,7 @@ export default function WebtoonBuilder() {
             </aside>
           </div>
         )}
-        {!loading && (
+        {!loading && !blockingFirstPanel && (
           <div className="flex justify-center gap-3 mt-8">
             <Button
               onClick={async () => {
