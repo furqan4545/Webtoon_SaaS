@@ -24,6 +24,8 @@ type OverlayItem = {
   y: number;
   width: number;
   height: number;
+  text: string;
+  isEditing: boolean;
 };
 
 export default function EditPanelsPage() {
@@ -146,6 +148,8 @@ export default function EditPanelsPage() {
         y: 24,
         width: w,
         height: h,
+        text: '',
+        isEditing: false,
       };
       setOverlays(prev => [...prev, item]);
     } catch {}
@@ -282,8 +286,44 @@ export default function EditPanelsPage() {
                   enableResizing={{ top:false, right:true, bottom:true, left:false, topRight:true, bottomRight:true, bottomLeft:true, topLeft:true }}
                   style={{ zIndex: 20, border: '2px solid transparent', borderRadius: 8 }}
                   className="shadow-lg"
+                  disableDragging={o.isEditing}
+                  dragHandleClassName="overlay-handle"
                 >
-                  <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  <div className="relative w-full h-full">
+                    <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' as any, pointerEvents: 'none' }} draggable={false} />
+                    {/* Full-cover drag handle; disabled while editing to allow typing */}
+                    <div
+                      className="overlay-handle absolute inset-0"
+                      style={{ cursor: o.isEditing ? 'text' : 'move', pointerEvents: o.isEditing ? 'none' : 'auto' }}
+                      onDoubleClick={() => {
+                        setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: true } : oo));
+                        setTimeout(() => {
+                          const el = document.getElementById(`overlay-edit-${o.id}`) as HTMLDivElement | null;
+                          el?.focus();
+                        }, 0);
+                      }}
+                    />
+                    {o.isEditing ? (
+                      <div
+                        id={`overlay-edit-${o.id}`}
+                        contentEditable
+                        suppressContentEditableWarning
+                        className="absolute inset-0 p-3 text-black text-center flex items-center justify-center whitespace-pre-wrap break-words overflow-hidden outline-none"
+                        onInput={(e) => {
+                          const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
+                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
+                        }}
+                        onBlur={() => {
+                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
+                        }}
+                        dangerouslySetInnerHTML={{ __html: (o.text || '').replace(/\n/g, '<br/>') }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 p-3 text-black text-center flex items-center justify-center whitespace-pre-wrap break-words overflow-hidden pointer-events-none">
+                        <span>{o.text || ''}</span>
+                      </div>
+                    )}
+                  </div>
                 </Rnd>
               ))}
             </div>
