@@ -26,6 +26,7 @@ export default function EditPanelsPage() {
   const [croppingPanelId, setCroppingPanelId] = useState<string | null>(null);
   const [crop, setCrop] = useState<Crop>({ unit: 'px', x: 10, y: 10, width: 200, height: 200 });
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [croppingImgEl, setCroppingImgEl] = useState<HTMLImageElement | null>(null);
 
   const canvasWidth = 800;
 
@@ -46,22 +47,44 @@ export default function EditPanelsPage() {
           .order('scene_no', { ascending: true });
         if (error) throw error;
 
-        // Sign and load sizes
+        // Sign and load sizes (robust: fetch blob + onerror handling + timeout)
+        const TIMEOUT_MS = 8000;
         const signed = await Promise.all((data || []).map(async (row: any) => {
-          if (!row?.image_path) return null;
-          const signed = await supabase.storage.from('webtoon').createSignedUrl(row.image_path, 60 * 60);
-          const url = signed.data?.signedUrl;
-          if (!url) return null;
-          // Probe natural size
-          const dims = await new Promise<{ w: number; h: number }>((resolve) => {
-            const img = new Image();
-            img.onload = () => resolve({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height });
-            img.src = url;
-          });
-          const scale = Math.min(1, canvasWidth / Math.max(1, dims.w));
-          const w = Math.round(dims.w * scale);
-          const h = Math.round(dims.h * scale);
-          return { id: `scene_${row.scene_no}`, src: url, w, h } as const;
+          try {
+            if (!row?.image_path) return null;
+            const signed = await supabase.storage.from('webtoon').createSignedUrl(row.image_path, 60 * 60);
+            const url = signed.data?.signedUrl;
+            if (!url) return null;
+            const controller = new AbortController();
+            const to = setTimeout(() => controller.abort(), TIMEOUT_MS);
+            const resp = await fetch(url, { cache: 'no-store', signal: controller.signal }).catch(() => null as any);
+            clearTimeout(to);
+            if (!resp || !resp.ok) {
+              // Fallback default dims if fetch failed but still render item
+              return { id: `scene_${row.scene_no}`, src: url, w: canvasWidth, h: Math.round(canvasWidth * 0.6) } as const;
+            }
+            const blob = await resp.blob();
+            const imgDims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+              const objectUrl = URL.createObjectURL(blob);
+              const img = new Image();
+              img.onload = () => {
+                const out = { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
+                URL.revokeObjectURL(objectUrl);
+                resolve(out);
+              };
+              img.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve({ w: canvasWidth, h: Math.round(canvasWidth * 0.6) });
+              };
+              img.src = objectUrl;
+            });
+            const scale = Math.min(1, canvasWidth / Math.max(1, imgDims.w));
+            const w = Math.round(imgDims.w * scale);
+            const h = Math.round(imgDims.h * scale);
+            return { id: `scene_${row.scene_no}`, src: url, w, h } as const;
+          } catch {
+            return null;
+          }
         }));
         const filtered = signed.filter(Boolean) as Array<{ id: string; src: string; w: number; h: number }>;
         // Stack vertically within 800px width
@@ -120,7 +143,22 @@ export default function EditPanelsPage() {
   const applyCrop = async () => {
     if (!croppingPanel || !crop) { setCroppingPanelId(null); return; }
     try {
-      const area = { x: Math.max(0, Math.round(crop.x || 0)), y: Math.max(0, Math.round(crop.y || 0)), width: Math.max(1, Math.round(crop.width || 0)), height: Math.max(1, Math.round(crop.height || 0)) };
+      // Map displayed crop (px) to natural image pixels
+      let area = { x: 0, y: 0, width: 1, height: 1 };
+      if (croppingImgEl) {
+        const displayW = croppingImgEl.width || croppingImgEl.clientWidth || (crop.width || 1);
+        const displayH = croppingImgEl.height || croppingImgEl.clientHeight || (crop.height || 1);
+        const naturalW = croppingImgEl.naturalWidth || displayW;
+        const naturalH = croppingImgEl.naturalHeight || displayH;
+        const scaleX = naturalW / Math.max(1, displayW);
+        const scaleY = naturalH / Math.max(1, displayH);
+        area = {
+          x: Math.max(0, Math.round((crop.x || 0) * scaleX)),
+          y: Math.max(0, Math.round((crop.y || 0) * scaleY)),
+          width: Math.max(1, Math.round((crop.width || 1) * scaleX)),
+          height: Math.max(1, Math.round((crop.height || 1) * scaleY)),
+        };
+      }
       const dataUrl = await getCroppedDataUrl(croppingPanel.src, area);
       setPanels(prev => prev.map(p => p.id === croppingPanel.id ? { ...p, src: dataUrl, width: Math.min(p.width, canvasWidth), height: p.height } : p));
     } catch (e) {
@@ -128,6 +166,7 @@ export default function EditPanelsPage() {
     } finally {
       setCroppingPanelId(null);
       setCrop({ unit: 'px', x: 10, y: 10, width: 200, height: 200 });
+      setCroppingImgEl(null);
     }
   };
 
@@ -201,12 +240,17 @@ export default function EditPanelsPage() {
             </div>
             <div className="relative" style={{ height: 520 }}>
               <ReactCrop crop={crop} onChange={(c) => setCrop(c)} keepSelection>
-                <img src={croppingPanel.src} alt="crop" style={{ maxHeight: '520px', objectFit: 'contain' }} />
+                <img
+                  src={croppingPanel.src}
+                  alt="crop"
+                  style={{ maxHeight: '520px', objectFit: 'contain' }}
+                  onLoad={(e) => setCroppingImgEl(e.currentTarget)}
+                />
               </ReactCrop>
             </div>
             <div className="px-4 py-3 border-t border-white/10 flex items-center gap-3 justify-end">
               <div className="flex items-center gap-2">
-                <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => { setCroppingPanelId(null); setZoom(1); setCrop({ x: 0, y: 0 }); setCroppedAreaPixels(null); }}>Cancel</Button>
+                <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={() => { setCroppingPanelId(null); setCrop({ unit: 'px', x: 10, y: 10, width: 200, height: 200 }); setCroppedAreaPixels(null); setCroppingImgEl(null); }}>Cancel</Button>
                 <Button className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white" onClick={applyCrop}>Apply Crop</Button>
               </div>
             </div>
