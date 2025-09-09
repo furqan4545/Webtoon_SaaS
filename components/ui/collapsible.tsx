@@ -31,7 +31,7 @@ export function Collapsible({ open: openProp, onOpenChange, className, children 
   );
 }
 
-export function CollapsibleTrigger({ className, children }: { className?: string; children: React.ReactNode; }) {
+export function CollapsibleTrigger({ className, children, chevron = false }: { className?: string; children: React.ReactNode; chevron?: boolean; }) {
   const ctx = useContext(CollapsibleContext)!;
   return (
     <button
@@ -41,7 +41,20 @@ export function CollapsibleTrigger({ className, children }: { className?: string
       onClick={() => ctx.setOpen(!ctx.open)}
       type="button"
     >
-      {children}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div>{children}</div>
+        {chevron && (
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            style={{ transform: ctx.open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease', opacity: 0.8 }}
+            aria-hidden
+          >
+            <path fill="currentColor" d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z"/>
+          </svg>
+        )}
+      </div>
     </button>
   );
 }

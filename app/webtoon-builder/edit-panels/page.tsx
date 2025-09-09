@@ -52,6 +52,7 @@ export default function EditPanelsPage() {
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const canvasWidth = 800;
+  const canvasPadding = 24; // equal padding around images
 
   useEffect(() => {
     (async () => {
@@ -101,7 +102,7 @@ export default function EditPanelsPage() {
               };
               img.src = objectUrl;
             });
-            const scale = Math.min(1, canvasWidth / Math.max(1, imgDims.w));
+            const scale = Math.min(1, (canvasWidth - canvasPadding * 2) / Math.max(1, imgDims.w));
             const w = Math.round(imgDims.w * scale);
             const h = Math.round(imgDims.h * scale);
             return { id: `scene_${row.scene_no}`, src: url, w, h } as const;
@@ -110,11 +111,11 @@ export default function EditPanelsPage() {
           }
         }));
         const filtered = signed.filter(Boolean) as Array<{ id: string; src: string; w: number; h: number }>;
-        // Stack vertically within 800px width
+        // Stack vertically within canvas width with vertical gaps
         let y = 0;
         const items: PanelItem[] = filtered.map((p) => {
-          const item = { id: p.id, src: p.src, x: Math.floor((canvasWidth - p.w) / 2), y, width: p.w, height: p.h } as PanelItem;
-          y += p.h + 24; // 24px gap
+          const item = { id: p.id, src: p.src, x: Math.floor((canvasWidth - p.w) / 2), y: y + canvasPadding, width: p.w, height: p.h } as PanelItem;
+          y += p.h + canvasPadding * 2; // equal top/bottom gap
           return item;
         });
         setPanels(items);
@@ -323,8 +324,8 @@ export default function EditPanelsPage() {
                 setSelectedPanelId(null);
               }}
             >
-              {/* Infinite-feel area via tall spacer */}
-              <div style={{ width: `${canvasWidth}px`, height: Math.max(1200, panels.reduce((m, p) => Math.max(m, p.y + p.height + 200), 0)) }} />
+              {/* Infinite-feel area via tall spacer with top/bottom padding */}
+              <div style={{ width: `${canvasWidth}px`, height: Math.max(1200, panels.reduce((m, p) => Math.max(m, p.y + p.height + canvasPadding), canvasPadding)) }} />
               {panels.map((p) => {
                 const isSelected = selectedPanelId === p.id;
                 const cornerHandle = isSelected ? { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', borderRadius: '9999px' } : undefined;
@@ -556,8 +557,8 @@ export default function EditPanelsPage() {
               <div className="text-sm text-white/80 mb-3">Controls</div>
 
               {/* Collapsible: Dialog Bubbles */}
-              <Collapsible>
-                <CollapsibleTrigger className="w-full text-left px-3 py-2 rounded border border-white/10 bg-white/10 text-white hover:bg-white/15">
+              <Collapsible open>
+                <CollapsibleTrigger chevron className="w-full text-left px-3 py-2 rounded border border-white/10 bg-white/10 text-white hover:bg-white/15">
                   Dialog Bubbles
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-3" maxHeight={260}>
@@ -577,7 +578,7 @@ export default function EditPanelsPage() {
               {/* Collapsible: Font Presets */}
               <div className="mt-4">
                 <Collapsible>
-                  <CollapsibleTrigger className="w-full text-left px-3 py-2 rounded border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                  <CollapsibleTrigger chevron className="w-full text-left px-3 py-2 rounded border border-white/10 bg-white/10 text-white hover:bg-white/15">
                     Font Presets
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-3" maxHeight={220}>
@@ -612,7 +613,7 @@ export default function EditPanelsPage() {
               {/* Collapsible: Text Size & Horizontal Bias */}
               <div className="mt-4">
                 <Collapsible>
-                  <CollapsibleTrigger className="w-full text-left px-3 py-2 rounded border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                  <CollapsibleTrigger chevron className="w-full text-left px-3 py-2 rounded border border-white/10 bg-white/10 text-white hover:bg-white/15">
                     Text Options
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-3 space-y-4" maxHeight={200}>
