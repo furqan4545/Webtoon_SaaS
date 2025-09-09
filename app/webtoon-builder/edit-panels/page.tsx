@@ -399,8 +399,10 @@ export default function EditPanelsPage() {
                       {(() => {
                         // Tweak these 3 paddings if a specific bubble needs more/less space
                         const sidePad = Math.round(o.width * 0.10);   // avoid stroke
-                        const topPad  = Math.round(o.height * 0.10);  // top inset
-                        const botPad  = Math.round(o.height * 0.22);  // bottom inset (tail room)
+                        // const topPad  = Math.round(o.height * 0.10);  // top inset
+                        // const botPad  = Math.round(o.height * 0.22);  // bottom inset (tail room)
+                        const topPad  = Math.round(o.height * 0.08);  // top inset (reduced)
+                        const botPad  = Math.round(o.height * 0.22);
                         const fontPx  = Math.max(12, Math.min(40,
                                         Math.floor((o.height - topPad - botPad) * 0.25)));
                 
