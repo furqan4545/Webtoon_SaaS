@@ -42,6 +42,7 @@ export default function EditPanelsPage() {
   const [overlays, setOverlays] = useState<OverlayItem[]>([]);
   const [bubbleSrcs, setBubbleSrcs] = useState<string[]>([]);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const canvasWidth = 800;
 
@@ -134,6 +135,27 @@ export default function EditPanelsPage() {
     setBubbleSrcs(pngs.map((n) => `${base}/${n}`));
   }, []);
 
+  const getCanvasHeight = (): number => {
+    return Math.max(1200, panels.reduce((m, p) => Math.max(m, p.y + p.height + 200), 0));
+  };
+
+  const computeViewportCenteredY = (overlayHeight: number): number => {
+    try {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      const canvasHeight = getCanvasHeight();
+      if (!rect) {
+        return Math.max(0, Math.round((canvasHeight - overlayHeight) / 2));
+      }
+      const viewportCenterY = window.innerHeight / 2;
+      const yInCanvas = viewportCenterY - rect.top; // convert to canvas coords
+      let newY = Math.round(yInCanvas - overlayHeight / 2);
+      newY = Math.min(Math.max(0, newY), Math.max(0, canvasHeight - overlayHeight));
+      return newY;
+    } catch {
+      return 24;
+    }
+  };
+
   const addOverlayFromSrc = async (src: string) => {
     try {
       // Probe natural dimensions to scale reasonably on 800px canvas
@@ -150,11 +172,12 @@ export default function EditPanelsPage() {
       const w = Math.round(natW * ratio);
       const h = Math.round(natH * ratio);
       const id = `overlay_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+      const centeredY = computeViewportCenteredY(h);
       const item: OverlayItem = {
         id,
         src,
         x: Math.floor((canvasWidth - w) / 2),
-        y: 24,
+        y: centeredY,
         width: w,
         height: h,
         text: '',
@@ -167,6 +190,29 @@ export default function EditPanelsPage() {
   };
 
   const croppingPanel = useMemo(() => panels.find(p => p.id === croppingPanelId) || null, [panels, croppingPanelId]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.key === 'Backspace' || e.key === 'Delete')) return;
+      if (!selectedOverlayId) return;
+      const active = document.activeElement as HTMLElement | null;
+      // If user is typing in an input/textarea/contentEditable, don't intercept
+      if (active && (
+        active.tagName === 'INPUT' ||
+        active.tagName === 'TEXTAREA' ||
+        active.isContentEditable
+      )) {
+        return;
+      }
+      const ov = overlays.find(o => o.id === selectedOverlayId);
+      if (!ov || ov.isEditing) return;
+      e.preventDefault();
+      setOverlays(prev => prev.filter(o => o.id !== selectedOverlayId));
+      setSelectedOverlayId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedOverlayId, overlays]);
 
   const onCropComplete = (_: any) => {
     // computed on apply to match current crop state
@@ -256,6 +302,7 @@ export default function EditPanelsPage() {
             <div
               className="relative bg-white rounded shadow border border-white/10 overflow-hidden"
               style={{ width: `${canvasWidth}px`, minHeight: '80vh', margin: '0 auto' }}
+              ref={canvasRef}
               onMouseDown={(e) => {
                 const target = e.target as HTMLElement;
                 // If clicking inside any overlay, don't clear selection
