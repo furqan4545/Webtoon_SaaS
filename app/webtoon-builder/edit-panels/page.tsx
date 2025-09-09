@@ -397,22 +397,6 @@ export default function EditPanelsPage() {
           </aside>
         </div>
       </main>
-      <BubbleTextEditorOverlay
-        targetEl={editorTarget}
-        open={editorOpen}
-        initialText={editorSeedText}
-        onCommit={(text) => {
-          if (!editorTarget) return;
-          const holder = editorTarget.closest('[data-overlay-id]') as HTMLElement | null;
-          const id = holder?.dataset.overlayId;
-          if (!id) return;
-          setOverlays(prev => prev.map(o => o.id === id ? { ...o, text } : o));
-        }}
-        onClose={() => setEditorOpen(false)}
-        font={`700 28px/1.2 "Inter", system-ui, sans-serif`}
-        color="#111"
-        align="center"
-      />
       {croppingPanel && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center px-4">
           <div className="w-full max-w-[900px] bg-[#0f0f1a] border border-white/10 rounded-md overflow-hidden">
