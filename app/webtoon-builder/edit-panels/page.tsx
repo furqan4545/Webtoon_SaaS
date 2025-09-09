@@ -48,6 +48,7 @@ export default function EditPanelsPage() {
   const [overlays, setOverlays] = useState<OverlayItem[]>([]);
   const [bubbleSrcs, setBubbleSrcs] = useState<string[]>([]);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
+  const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const canvasWidth = 800;
@@ -317,33 +318,55 @@ export default function EditPanelsPage() {
                 const target = e.target as HTMLElement;
                 // If clicking inside any overlay, don't clear selection
                 if (target.closest('[data-overlay-id]')) return;
+                if (target.closest('[data-panel-id]')) return;
                 setSelectedOverlayId(null);
+                setSelectedPanelId(null);
               }}
             >
               {/* Infinite-feel area via tall spacer */}
               <div style={{ width: `${canvasWidth}px`, height: Math.max(1200, panels.reduce((m, p) => Math.max(m, p.y + p.height + 200), 0)) }} />
-              {panels.map((p) => (
+              {panels.map((p) => {
+                const isSelected = selectedPanelId === p.id;
+                const cornerHandle = isSelected ? { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', borderRadius: '9999px' } : undefined;
+                return (
                 <Rnd
                   key={p.id}
                   bounds="parent"
                   size={{ width: p.width, height: p.height }}
                   position={{ x: p.x, y: p.y }}
+                  onDragStart={() => { setSelectedPanelId(p.id); setSelectedOverlayId(null); }}
                   onDoubleClick={() => setCroppingPanelId(p.id)}
                   onDragStop={(e, d) => {
                     setPanels(prev => prev.map(pp => pp.id === p.id ? { ...pp, x: d.x, y: d.y } : pp));
                   }}
+                  onResizeStart={() => { setSelectedPanelId(p.id); setSelectedOverlayId(null); }}
                   onResizeStop={(e, dir, ref, delta, pos) => {
                     const w = Math.round(ref.offsetWidth);
                     const h = Math.round(ref.offsetHeight);
                     setPanels(prev => prev.map(pp => pp.id === p.id ? { ...pp, width: w, height: h, x: pos.x, y: pos.y } : pp));
                   }}
                   lockAspectRatio
-                  enableResizing={{ top:false, right:true, bottom:true, left:false, topRight:true, bottomRight:true, bottomLeft:true, topLeft:true }}
-                  className="shadow-lg"
+                  enableResizing={{ top:false, right:false, bottom:false, left:false, topRight:true, bottomRight:true, bottomLeft:true, topLeft:true }}
+                  resizeHandleStyles={{
+                    topRight: cornerHandle,
+                    bottomRight: cornerHandle,
+                    bottomLeft: cornerHandle,
+                    topLeft: cornerHandle,
+                  }}
+                  style={{ zIndex: isSelected ? 15 : 5, outline: isSelected ? '2px solid #3b82f6' : 'none', border: '2px solid transparent', boxShadow: 'none' }}
+                  data-panel-id={p.id}
                 >
-                  <img src={p.src} alt={p.id} style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+                  <div className="relative w-full h-full">
+                    <img src={p.src} alt={p.id} style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
+                    <div
+                      className="absolute inset-0"
+                      data-panel-id={p.id}
+                      style={{ cursor: 'move' }}
+                      onMouseDown={() => { setSelectedPanelId(p.id); setSelectedOverlayId(null); }}
+                    />
+                  </div>
                 </Rnd>
-              ))}
+              );})}
               {/* Overlays on top */}
               {overlays.map((o) => {
                 const isSelected = selectedOverlayId === o.id;
