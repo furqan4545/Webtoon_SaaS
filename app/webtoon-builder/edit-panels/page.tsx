@@ -291,6 +291,134 @@ export default function EditPanelsPage() {
     }
   };
 
+  // Compose current layout into a single tall PNG
+  const loadImageSafe = async (src: string): Promise<HTMLImageElement> => {
+    try {
+      if (src.startsWith('data:')) {
+        return await createImageFromBlob(await (await fetch(src)).blob());
+      }
+      const resp = await fetch(src, { cache: 'no-store' });
+      const blob = await resp.blob();
+      return await createImageFromBlob(blob);
+    } catch {
+      // Fallback transparent 1x1
+      const c = document.createElement('canvas'); c.width = 1; c.height = 1;
+      return await createImageFromBlob(await new Promise<Blob>((r)=>c.toBlob(b=>r(b||new Blob()), 'image/png')!));
+    }
+  };
+
+  const generateCompositeDataUrl = async (): Promise<string> => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasWidth;
+    const bottomPanels = panels.reduce((m, p) => Math.max(m, p.y + p.height), 0);
+    const bottomOverlays = overlays.reduce((m, o) => Math.max(m, o.y + o.height), 0);
+    canvas.height = Math.max(bottomPanels, bottomOverlays) + canvasPadding;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas unsupported');
+    // white background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // draw panels
+    for (const p of panels) {
+      try {
+        const img = await loadImageSafe(p.src);
+        ctx.drawImage(img, p.x, p.y, p.width, p.height);
+      } catch {}
+    }
+
+    // draw overlays (bubble + text)
+    for (const o of overlays) {
+      try {
+        const img = await loadImageSafe(o.src);
+        ctx.drawImage(img, o.x, o.y, o.width, o.height);
+      } catch {}
+
+      const sidePad = Math.round(o.width * 0.10);
+      const topBase = Math.round(o.height * 0.08);
+      const botBase = Math.round(o.height * 0.24);
+      const basePx = Math.max(12, Math.min(40, Math.floor((o.height - topBase - botBase) * 0.25)));
+      const fontPx = Math.round(basePx * (o.fontScale || 1));
+      const biasPct = Math.max(-100, Math.min(100, o.hBias ?? 0));
+      const totalPad = sidePad * 2;
+      const contentWidth = Math.max(0, o.width - totalPad);
+      const halfBias = Math.round((contentWidth * Math.abs(biasPct) / 100) / 2);
+      const leftPad  = biasPct > 0 ? sidePad + halfBias : sidePad;
+      const rightPad = biasPct < 0 ? sidePad + halfBias : sidePad;
+      const vBiasPct = Math.max(-100, Math.min(100, o.vBias ?? 0));
+      const contentHeight = Math.max(0, o.height - (topBase + botBase));
+      const halfVBias = Math.round((contentHeight * Math.abs(vBiasPct) / 100) / 2);
+      const topPad  = topBase  + (vBiasPct > 0 ? halfVBias : 0);
+      const bottomPad = botBase + (vBiasPct < 0 ? halfVBias : 0);
+
+      // text box
+      const tx = o.x + leftPad;
+      const ty = o.y + topPad;
+      const tw = Math.max(1, o.width - leftPad - rightPad);
+      const th = Math.max(1, o.height - topPad - bottomPad);
+
+      // text settings
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `${fontPx}px ${o.fontFamily || 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif'}`;
+
+      // word wrap
+      const words = String(o.text || '').split(/\s+/);
+      const lines: string[] = [];
+      let current = '';
+      for (const w of words) {
+        const test = current ? current + ' ' + w : w;
+        const width = ctx.measureText(test).width;
+        if (width <= tw) {
+          current = test;
+        } else {
+          if (current) lines.push(current);
+          current = w;
+        }
+      }
+      if (current) lines.push(current);
+      const lineHeight = Math.round(fontPx * 1.2);
+      const totalHeight = lines.length * lineHeight;
+      let y = ty + Math.max(0, (th - totalHeight) / 2) + lineHeight / 2;
+      for (const line of lines) {
+        ctx.fillText(line, Math.round(tx + tw / 2), Math.round(y));
+        y += lineHeight;
+      }
+    }
+
+    return canvas.toDataURL('image/png');
+  };
+
+  const handlePreviewComposite = async () => {
+    const dataUrl = await generateCompositeDataUrl();
+    const w = window.open('about:blank');
+    if (w) {
+      const img = new Image();
+      img.src = dataUrl;
+      img.style.maxWidth = '100%';
+      img.style.display = 'block';
+      w.document.body.style.margin = '0';
+      w.document.body.appendChild(img);
+    }
+  };
+
+  const handlePublishComposite = async () => {
+    const dataUrl = await generateCompositeDataUrl();
+    // Download PNG
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'webtoon.png';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    // Update project status as published
+    try {
+      const projectId = sessionStorage.getItem('currentProjectId');
+      if (projectId) {
+        await fetch('/api/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId }) });
+      }
+    } catch {}
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
       <main className="mx-auto max-w-[1600px] px-4 py-6 lg:pr-[460px]">
@@ -679,6 +807,17 @@ export default function EditPanelsPage() {
           </aside>
         </div>
       </main>
+      {/* Footer actions */}
+      <div className="mx-auto max-w-[1600px] px-4 pb-10">
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={handlePreviewComposite}>
+            Preview Webtoon
+          </Button>
+          <Button className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white" onClick={handlePublishComposite}>
+            Publish Webtoon
+          </Button>
+        </div>
+      </div>
       {croppingPanel && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center px-4">
           <div className="w-full max-w-[900px] bg-[#0f0f1a] border border-white/10 rounded-md overflow-hidden">
