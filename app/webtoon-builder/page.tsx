@@ -757,8 +757,8 @@ export default function WebtoonBuilder() {
           <div className="flex justify-center gap-3 mt-8">
             <Button
               onClick={() => {
-                const win = window.open('/webtoon-builder/edit-panels', '_blank');
-                try { (win as any)?.focus?.(); } catch {}
+                // Navigate in the same tab
+                router.push('/webtoon-builder/edit-panels');
               }}
               className="px-8 bg-white/10 text-white hover:bg-white/20"
             >

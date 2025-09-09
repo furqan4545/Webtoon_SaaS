@@ -25,11 +25,12 @@ const STEPS: Step[] = [
   { title: "Import story", description: "Paste or upload", href: "/import-story" },
   { title: "Art style", description: "Describe look", href: "/choose-art-style" },
   { title: "Characters", description: "Generate refs", href: "/generate-characters" },
-  { title: "Builder", description: "Assemble scenes", href: "/webtoon-builder" },
+  { title: "Webtoon builder", description: "Assemble scenes", href: "/webtoon-builder" },
+  { title: "Edit panels layout", description: "Arrange panels & bubbles", href: "/webtoon-builder/edit-panels" },
 ];
 
 interface StepBarProps {
-  currentStep: number; // 1..4
+  currentStep: number; // 1..5
   className?: string;
 }
 
