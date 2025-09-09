@@ -74,17 +74,37 @@ export default function Header() {
     };
     (async () => {
       const { data } = await supabase.auth.getSession();
-      const user = data.session?.user || null;
+      let user = data.session?.user || null;
+      if (user && !user.email) {
+        try {
+          const { data: fresh } = await supabase.auth.getUser();
+          if (fresh?.user) user = fresh.user;
+        } catch {}
+      }
       await loadCreditsForUser(user?.id, user?.email ?? null);
     })();
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user || null;
+      let user = session?.user || null;
+      if (user && !user.email) {
+        supabase.auth.getUser().then(({ data }) => {
+          const fresh = data?.user || null;
+          loadCreditsForUser(fresh?.id, fresh?.email ?? null);
+        });
+        return;
+      }
       loadCreditsForUser(user?.id, user?.email ?? null);
     });
     const onRefresh = () => {
       // refresh for the current session
       supabase.auth.getSession().then(({ data }) => {
-        const user = data.session?.user || null;
+        let user = data.session?.user || null;
+        if (user && !user.email) {
+          supabase.auth.getUser().then(({ data }) => {
+            const fresh = data?.user || null;
+            loadCreditsForUser(fresh?.id, fresh?.email ?? null);
+          });
+          return;
+        }
         loadCreditsForUser(user?.id, user?.email ?? null);
       });
     };
@@ -114,6 +134,9 @@ export default function Header() {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    try {
+      Object.keys(localStorage).filter((k) => k.startsWith('sb-')).forEach((k) => localStorage.removeItem(k));
+    } catch {}
     router.replace("/login");
   };
 
