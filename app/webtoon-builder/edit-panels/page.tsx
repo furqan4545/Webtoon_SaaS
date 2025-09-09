@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
 import ReactCrop, { type Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
+import BubbleTextEditorOverlay from "./BubbleTextEditorOverlay";
 
 type PanelItem = {
   id: string;
@@ -41,6 +42,9 @@ export default function EditPanelsPage() {
   const [croppingImgEl, setCroppingImgEl] = useState<HTMLImageElement | null>(null);
   const [overlays, setOverlays] = useState<OverlayItem[]>([]);
   const [bubbleSrcs, setBubbleSrcs] = useState<string[]>([]);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorTarget, setEditorTarget] = useState<HTMLElement | null>(null);
+  const [editorSeedText, setEditorSeedText] = useState("");
 
   const canvasWidth = 800;
 
@@ -281,6 +285,7 @@ export default function EditPanelsPage() {
                 <Rnd
                   key={o.id}
                   bounds="parent"
+                  data-overlay-id={o.id}
                   size={{ width: o.width, height: o.height }}
                   position={{ x: o.x, y: o.y }}
                   onDragStop={(e, d) => {
@@ -304,71 +309,32 @@ export default function EditPanelsPage() {
                     <div
                       className="overlay-handle absolute inset-0"
                       style={{ cursor: o.isEditing ? 'text' : 'move', pointerEvents: o.isEditing ? 'none' : 'auto' }}
-                      onDoubleClick={() => {
-                        setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: true } : oo));
-                        setTimeout(() => {
-                          const el = document.getElementById(`overlay-edit-${o.id}`) as HTMLDivElement | null;
-                          el?.focus();
-                        }, 0);
+                      onDoubleClick={(e) => {
+                        const el = (e.currentTarget as HTMLElement).parentElement as HTMLElement;
+                        setEditorTarget(el);
+                        setEditorSeedText(o.text || "");
+                        setEditorOpen(true);
                       }}
                     />
-                    {o.isEditing ? (
-                      <div
-                        id={`overlay-edit-${o.id}`}
-                        contentEditable
-                        suppressContentEditableWarning
-                        className="absolute inset-0 p-3 text-black text-center whitespace-pre-wrap break-words overflow-hidden outline-none"
-                        dir="ltr"
-                        style={{
-                          transform: 'none',
-                          direction: 'ltr',
-                          unicodeBidi: 'isolate',
-                          writingMode: 'horizontal-tb',
-                          textAlign: 'center',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          height: '100%',
-                          minHeight: '100%',
-                          lineHeight: 1.2,
-                          textOrientation: 'mixed',
-                          WebkitTextOrientation: 'mixed' as any,
-                          WebkitWritingMode: 'horizontal-tb' as any,
-                        }}
-                        onInput={(e) => {
-                          const raw = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
-                          const text = raw.replace(/\u200B/g, '');
-                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
-                        }}
-                        onBlur={() => {
-                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false, text: (oo.text || '').replace(/\u200B/g, '') } : oo));
-                        }}
-                        dangerouslySetInnerHTML={{ __html: ((o.text && o.text.length > 0) ? o.text : '\u200B').replace(/\n/g, '<br/>') }}
-                      />
-                    ) : (
-                      <div
-                        className="absolute inset-0 p-3 text-black text-center whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
-                        dir="ltr"
-                        style={{
-                          transform: 'none',
-                          direction: 'ltr',
-                          unicodeBidi: 'isolate',
-                          writingMode: 'horizontal-tb',
-                          textAlign: 'center',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          height: '100%',
-                          minHeight: '100%',
-                          lineHeight: 1.2,
-                          textOrientation: 'mixed',
-                          WebkitTextOrientation: 'mixed' as any,
-                          WebkitWritingMode: 'horizontal-tb' as any,
-                        }}
-                      >
-                        <span>{o.text || ''}</span>
-                      </div>
-                    )}
+                    <div
+                      className="absolute inset-0 p-3 text-black text-center whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
+                      dir="ltr"
+                      style={{
+                        transform: 'none',
+                        direction: 'ltr',
+                        unicodeBidi: 'plaintext',
+                        writingMode: 'horizontal-tb',
+                        textAlign: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: '100%',
+                        minHeight: '100%',
+                        lineHeight: 1.2,
+                      }}
+                    >
+                      <span>{o.text || ''}</span>
+                    </div>
                   </div>
                 </Rnd>
               ))}
@@ -399,6 +365,22 @@ export default function EditPanelsPage() {
           </aside>
         </div>
       </main>
+      <BubbleTextEditorOverlay
+        targetEl={editorTarget}
+        open={editorOpen}
+        initialText={editorSeedText}
+        onCommit={(text) => {
+          if (!editorTarget) return;
+          const holder = editorTarget.closest('[data-overlay-id]') as HTMLElement | null;
+          const id = holder?.dataset.overlayId;
+          if (!id) return;
+          setOverlays(prev => prev.map(o => o.id === id ? { ...o, text } : o));
+        }}
+        onClose={() => setEditorOpen(false)}
+        font={`700 28px/1.2 "Inter", system-ui, sans-serif`}
+        color="#111"
+        align="center"
+      />
       {croppingPanel && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center px-4">
           <div className="w-full max-w-[900px] bg-[#0f0f1a] border border-white/10 rounded-md overflow-hidden">
