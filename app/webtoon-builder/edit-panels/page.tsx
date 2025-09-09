@@ -300,9 +300,120 @@ export default function EditPanelsPage() {
                   dragHandleClassName="overlay-handle"
                 >
                   <div className="relative w-full h-full">
-                    <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' as any, pointerEvents: 'none', transform: 'none' }} draggable={false} />
-                    {/* Full-cover drag handle; disabled while editing to allow typing */}
-                    {/* Double-click the bubble to start editing */}
+                    {/* Bubble image (visual) */}
+                    <img
+                      src={o.src}
+                      alt={o.id}
+                      draggable={false}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                        userSelect: 'none',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                
+                    {/* Mask layer — clamps children to the bubble alpha */}
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        WebkitMaskImage: `url(${o.src})`,
+                        maskImage: `url(${o.src})`,
+                        WebkitMaskSize: '100% 100%',
+                        maskSize: '100% 100%',
+                        WebkitMaskRepeat: 'no-repeat',
+                        maskRepeat: 'no-repeat',
+                        WebkitMaskPosition: 'center',
+                        maskPosition: 'center',
+                      }}
+                    >
+                      {(() => {
+                        // Tweak these 3 paddings if a specific bubble needs more/less space
+                        const sidePad = Math.round(o.width * 0.10);   // avoid stroke
+                        const topPad  = Math.round(o.height * 0.10);  // top inset
+                        const botPad  = Math.round(o.height * 0.22);  // bottom inset (tail room)
+                        const fontPx  = Math.max(12, Math.min(40,
+                                        Math.floor((o.height - topPad - botPad) * 0.25)));
+                
+                        return (
+                          <div
+                            className="absolute"
+                            style={{
+                              left: sidePad, right: sidePad, top: topPad, bottom: botPad,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {o.isEditing ? (
+                              // EDIT: contentEditable so the caret sits mid-center
+                              <div
+                                id={`overlay-edit-${o.id}`}
+                                contentEditable
+                                suppressContentEditableWarning
+                                spellCheck={false}
+                                onInput={(e) => {
+                                  const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
+                                  setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
+                                }}
+                                onBlur={() => {
+                                  setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
+                                }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '100%',
+                                  height: '100%',
+                                  background: 'transparent',
+                                  color: '#000',
+                                  outline: 'none',
+                                  border: 'none',
+                                  // Prevent RTL/bidi flips
+                                  direction: 'ltr',
+                                  unicodeBidi: 'isolate-override' as any,
+                                  writingMode: 'horizontal-tb',
+                                  // Wrap cleanly inside the oval
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                  overflowWrap: 'anywhere',
+                                  overflow: 'hidden',
+                                  lineHeight: 1.2,
+                                  fontSize: `${fontPx}px`,
+                                }}
+                              >
+                                {o.text || ''}
+                              </div>
+                            ) : (
+                              // VIEW: static centered text
+                              <div
+                                className="pointer-events-none"
+                                style={{
+                                  width: '100%',
+                                  maxHeight: '100%',
+                                  color: '#000',
+                                  direction: 'ltr',
+                                  unicodeBidi: 'isolate-override' as any,
+                                  writingMode: 'horizontal-tb',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                  overflowWrap: 'anywhere',
+                                  overflow: 'hidden',
+                                  lineHeight: 1.2,
+                                  fontSize: `${fontPx}px`,
+                                }}
+                              >
+                                {o.text || ''}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                
+                    {/* Full-cover drag handle; disabled while editing */}
                     <div
                       className="overlay-handle absolute inset-0"
                       style={{ cursor: o.isEditing ? 'text' : 'move', pointerEvents: o.isEditing ? 'none' : 'auto' }}
@@ -311,69 +422,6 @@ export default function EditPanelsPage() {
                         setTimeout(() => document.getElementById(`overlay-edit-${o.id}`)?.focus(), 0);
                       }}
                     />
-
-                    {o.isEditing ? (
-                      // EDIT MODE: plain textarea (LTR forced, isolated from bidi)
-                      <textarea
-                        id={`overlay-edit-${o.id}`}
-                        value={o.text}
-                        onChange={(e) => {
-                          const text = e.currentTarget.value;
-                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
-                        }}
-                        onBlur={() => {
-                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') (e.currentTarget as HTMLTextAreaElement).blur();
-                        }}
-                        className="absolute inset-0 p-3 bubble-textarea"
-                        style={{
-                          background: 'transparent',
-                          color: '#000',
-                          border: 'none',
-                          outline: 'none',
-                          resize: 'none',
-                          width: '100%',
-                          height: '100%',
-                          // force normal LTR, isolate from any ancestor bidi weirdness
-                          direction: 'ltr',
-                          unicodeBidi: 'isolate-override' as any,
-                          writingMode: 'horizontal-tb',
-                          // layout
-                          display: 'block',
-                          textAlign: 'left',
-                          lineHeight: 1.25,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          overflowWrap: 'anywhere',
-                          overflow: 'hidden',
-                          fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
-                        }}
-                        spellCheck={false}
-                      />
-                    ) : (
-                      // VIEW MODE: static text (pointer-events off so the whole card drags)
-                      <div
-                        className="absolute inset-0 p-3 pointer-events-none bubble-text"
-                        style={{
-                          direction: 'ltr',
-                          unicodeBidi: 'isolate-override' as any,
-                          writingMode: 'horizontal-tb',
-                          display: 'block',
-                          textAlign: 'left',
-                          lineHeight: 1.25,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          overflowWrap: 'anywhere',
-                          overflow: 'hidden',
-                          fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
-                          color: '#000',
-                        }}
-                      >
-                        <span style={{ maxWidth: '92%', display: 'inline-block' }}>{o.text || ''}</span>
-                      </div>
-                    )}
                   </div>
                 </Rnd>
               ))}
