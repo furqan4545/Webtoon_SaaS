@@ -348,46 +348,47 @@ export default function EditPanelsPage() {
                             }}
                           >
                             {o.isEditing ? (
-                              // EDIT: contentEditable so the caret sits mid-center
-                              <div
+                              // EDIT MODE: plain textarea (bidi-proof)
+                              <textarea
                                 id={`overlay-edit-${o.id}`}
-                                contentEditable
-                                suppressContentEditableWarning
-                                spellCheck={false}
-                                onInput={(e) => {
-                                  const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
+                                value={o.text}
+                                onChange={(e) => {
+                                  const text = e.currentTarget.value;
                                   setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
                                 }}
                                 onBlur={() => {
                                   setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
                                 }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Escape') (e.currentTarget as HTMLTextAreaElement).blur();
+                                }}
+                                className="absolute inset-0 p-3"
                                 style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '100%',
-                                  height: '100%',
                                   background: 'transparent',
                                   color: '#000',
-                                  outline: 'none',
                                   border: 'none',
-                                  // Prevent RTL/bidi flips
+                                  outline: 'none',
+                                  resize: 'none',
+                                  width: '100%',
+                                  height: '100%',
+                                  // bidi-safe:
                                   direction: 'ltr',
                                   unicodeBidi: 'isolate-override' as any,
                                   writingMode: 'horizontal-tb',
-                                  // Wrap cleanly inside the oval
+                                  // wrapping
                                   whiteSpace: 'pre-wrap',
                                   wordBreak: 'break-word',
                                   overflowWrap: 'anywhere',
                                   overflow: 'hidden',
                                   lineHeight: 1.2,
+                                  textAlign: 'center', // horizontal center while editing
                                   fontSize: `${fontPx}px`,
                                 }}
-                              >
-                                {o.text || ''}
-                              </div>
+                                spellCheck={false}
+                                autoFocus
+                              />
                             ) : (
-                              // VIEW: static centered text
+                              // VIEW MODE: centered text inside the masked, padded box
                               <div
                                 className="pointer-events-none"
                                 style={{
@@ -402,7 +403,11 @@ export default function EditPanelsPage() {
                                   overflowWrap: 'anywhere',
                                   overflow: 'hidden',
                                   lineHeight: 1.2,
+                                  textAlign: 'center',
                                   fontSize: `${fontPx}px`,
+                                  display: 'flex',           // flex-center in view mode
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
                                 }}
                               >
                                 {o.text || ''}
