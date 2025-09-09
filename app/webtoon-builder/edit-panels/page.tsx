@@ -253,7 +253,16 @@ export default function EditPanelsPage() {
           {/* Left: editing canvas */
           }
           <div className="flex-1">
-            <div className="relative bg-white rounded shadow border border-white/10 overflow-hidden" style={{ width: `${canvasWidth}px`, minHeight: '80vh', margin: '0 auto' }} onMouseDown={() => setSelectedOverlayId(null)}>
+            <div
+              className="relative bg-white rounded shadow border border-white/10 overflow-hidden"
+              style={{ width: `${canvasWidth}px`, minHeight: '80vh', margin: '0 auto' }}
+              onMouseDown={(e) => {
+                const target = e.target as HTMLElement;
+                // If clicking inside any overlay, don't clear selection
+                if (target.closest('[data-overlay-id]')) return;
+                setSelectedOverlayId(null);
+              }}
+            >
               {/* Infinite-feel area via tall spacer */}
               <div style={{ width: `${canvasWidth}px`, height: Math.max(1200, panels.reduce((m, p) => Math.max(m, p.y + p.height + 200), 0)) }} />
               {panels.map((p) => (
@@ -282,7 +291,6 @@ export default function EditPanelsPage() {
               {overlays.map((o) => {
                 const isSelected = selectedOverlayId === o.id;
                 const cornerHandle = isSelected ? { width: '12px', height: '12px', background: '#3b82f6', border: '2px solid #fff', borderRadius: '9999px' } : undefined;
-                const edgeHandle = isSelected ? { background: 'rgba(59,130,246,0.9)' } : undefined;
                 return (
                 <Rnd
                   key={o.id}
@@ -301,18 +309,14 @@ export default function EditPanelsPage() {
                     setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, width: w, height: h, x: pos.x, y: pos.y } : oo));
                   }}
                   lockAspectRatio
-                  enableResizing={{ top:false, right:true, bottom:true, left:false, topRight:true, bottomRight:true, bottomLeft:true, topLeft:true }}
+                  enableResizing={{ top:false, right:false, bottom:false, left:false, topRight:true, bottomRight:true, bottomLeft:true, topLeft:true }}
                   resizeHandleStyles={{
-                    top: edgeHandle,
-                    right: edgeHandle,
-                    bottom: edgeHandle,
-                    left: edgeHandle,
                     topRight: cornerHandle,
                     bottomRight: cornerHandle,
                     bottomLeft: cornerHandle,
                     topLeft: cornerHandle,
                   }}
-                  style={{ zIndex: isSelected ? 40 : 20, border: isSelected ? '2px solid #3b82f6' : '2px solid transparent', borderRadius: 8, boxShadow: 'none' }}
+                  style={{ zIndex: isSelected ? 40 : 20, outline: isSelected ? '2px solid #3b82f6' : 'none', border: '2px solid transparent', borderRadius: 8, boxShadow: 'none' }}
                   disableDragging={o.isEditing}
                   dragHandleClassName="overlay-handle"
                 >
@@ -439,7 +443,7 @@ export default function EditPanelsPage() {
                     <div
                       className="overlay-handle absolute inset-0"
                       style={{ cursor: o.isEditing ? 'text' : 'move', pointerEvents: o.isEditing ? 'none' : 'auto' }}
-                      onMouseDown={(e) => { e.stopPropagation(); setSelectedOverlayId(o.id); }}
+                      onMouseDown={() => { setSelectedOverlayId(o.id); }}
                       onDoubleClick={() => {
                         setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: true } : oo));
                         setTimeout(() => document.getElementById(`overlay-edit-${o.id}`)?.focus(), 0);
