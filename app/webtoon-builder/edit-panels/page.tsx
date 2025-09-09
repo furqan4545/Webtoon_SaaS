@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Rnd } from "react-rnd";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Slider } from "@/components/ui/slider";
 import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
 import ReactCrop, { type Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
@@ -27,6 +29,9 @@ type OverlayItem = {
   text: string;
   isEditing: boolean;
   flipped: boolean;
+  fontFamily?: string;
+  fontScale?: number; // 0.5 - 2.0
+  hBias?: number; // -100 .. 100 (negative -> push left, positive -> push right)
 };
 
 export default function EditPanelsPage() {
@@ -183,6 +188,9 @@ export default function EditPanelsPage() {
         text: '',
         isEditing: false,
         flipped: false,
+        fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
+        fontScale: 1,
+        hBias: 0,
       };
       setOverlays(prev => [...prev, item]);
       setSelectedOverlayId(id);
@@ -402,15 +410,22 @@ export default function EditPanelsPage() {
                         // const topPad  = Math.round(o.height * 0.10);  // top inset
                         // const botPad  = Math.round(o.height * 0.22);  // bottom inset (tail room)
                         const topPad  = Math.round(o.height * 0.08);  // top inset (reduced)
-                        const botPad  = Math.round(o.height * 0.22);
-                        const fontPx  = Math.max(12, Math.min(40,
+                        const botPad  = Math.round(o.height * 0.24);
+                        const basePx  = Math.max(12, Math.min(40,
                                         Math.floor((o.height - topPad - botPad) * 0.25)));
+                        const fontPx  = Math.round(basePx * (o.fontScale || 1));
+                        const biasPct = Math.max(-100, Math.min(100, o.hBias ?? 0));
+                        const totalPad = sidePad * 2;
+                        const contentWidth = Math.max(0, o.width - totalPad);
+                        const halfBias = Math.round((contentWidth * Math.abs(biasPct) / 100) / 2);
+                        const leftPad  = biasPct > 0 ? sidePad + halfBias : sidePad;
+                        const rightPad = biasPct < 0 ? sidePad + halfBias : sidePad;
                 
                         return (
                           <div
                             className="absolute"
                             style={{
-                              left: sidePad, right: sidePad, top: topPad, bottom: botPad,
+                              left: leftPad, right: rightPad, top: topPad, bottom: botPad,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -478,6 +493,7 @@ export default function EditPanelsPage() {
                                   display: 'flex',           // flex-center in view mode
                                   alignItems: 'center',
                                   justifyContent: 'center',
+                                  fontFamily: o.fontFamily,
                                 }}
                               >
                                 {o.text || ''}
@@ -506,23 +522,110 @@ export default function EditPanelsPage() {
           {/* Right: control panel matching chat panel */}
           <aside className="hidden lg:block fixed top-[64px] right-0 h-[calc(100vh-64px)] w-[420px]">
             <div className="h-full border border-white/10 bg-white/5 backdrop-blur-sm rounded-none p-4 overflow-y-auto">
-              <div className="text-sm text-white/80 mb-3">Dialog Bubbles</div>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                {bubbleSrcs.map((src, idx) => (
-                  <button key={idx} className="bg-white/10 hover:bg-white/20 rounded p-2 flex items-center justify-center" onClick={() => addOverlayFromSrc(src)}>
-                    <img src={src} alt={`bubble_${idx}`} className="max-h-24 object-contain" />
-                  </button>
-                ))}
-                {bubbleSrcs.length === 0 && (
-                  <div className="col-span-2 text-white/60 text-sm">No bubbles found in /public/DialogBubbles</div>
-                )}
+              <div className="text-sm text-white/80 mb-3">Controls</div>
+
+              {/* Collapsible: Dialog Bubbles */}
+              <Collapsible>
+                <CollapsibleTrigger className="w-full text-left px-3 py-2 rounded border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                  Dialog Bubbles
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-3" maxHeight={260}>
+                  <div className="grid grid-cols-2 gap-3 pr-1 overflow-y-auto" style={{ maxHeight: 240 }}>
+                    {bubbleSrcs.map((src, idx) => (
+                      <button key={idx} className="bg-white/10 hover:bg-white/20 rounded p-2 flex items-center justify-center" onClick={() => addOverlayFromSrc(src)}>
+                        <img src={src} alt={`bubble_${idx}`} className="max-h-24 object-contain" />
+                      </button>
+                    ))}
+                    {bubbleSrcs.length === 0 && (
+                      <div className="col-span-2 text-white/60 text-sm">No bubbles found in /public/DialogBubbles</div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              {/* Collapsible: Font Presets */}
+              <div className="mt-4">
+                <Collapsible>
+                  <CollapsibleTrigger className="w-full text-left px-3 py-2 rounded border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                    Font Presets
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3" maxHeight={220}>
+                    <div className="grid grid-cols-2 gap-2 pr-1 overflow-y-auto" style={{ maxHeight: 200 }}>
+                      {[
+                        { label: 'Sans', value: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif' },
+                        { label: 'Serif', value: 'Georgia, Cambria, Times New Roman, Times, serif' },
+                        { label: 'Mono', value: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' },
+                        { label: 'Comic', value: 'Comic Sans MS, Comic Sans, cursive, sans-serif' },
+                        { label: 'Impact', value: 'Impact, Haettenschweiler, Arial Narrow Bold, sans-serif' },
+                        { label: 'Cooper', value: 'Cooper Black, Georgia, serif' },
+                      ].map(preset => (
+                        <button
+                          key={preset.label}
+                          className="rounded border border-white/10 bg-white/10 hover:bg-white/20 text-white px-2 py-3"
+                          onClick={() => {
+                            if (!selectedOverlayId) return;
+                            setOverlays(prev => prev.map(o => o.id === selectedOverlayId ? { ...o, fontFamily: preset.value } : o));
+                          }}
+                        >
+                          <div style={{ fontFamily: preset.value }} className="text-center select-none">
+                            <div className="text-xs text-white/70">{preset.label}</div>
+                            <div className="text-base">Aa Bb</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               </div>
-              
-              <div className="text-sm text-white/80 mb-2">Tips</div>
-              <ul className="text-xs text-white/60 list-disc pl-5 space-y-1">
+
+              {/* Collapsible: Text Size & Horizontal Bias */}
+              <div className="mt-4">
+                <Collapsible>
+                  <CollapsibleTrigger className="w-full text-left px-3 py-2 rounded border border-white/10 bg-white/10 text-white hover:bg-white/15">
+                    Text Options
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3 space-y-4" maxHeight={200}>
+                    <div>
+                      <div className="text-xs text-white/70 mb-1">Text Size</div>
+                      <Slider
+                        value={Math.round(((overlays.find(o => o.id === selectedOverlayId)?.fontScale ?? 1) - 0.5) * 100)}
+                        min={0}
+                        max={150}
+                        step={1}
+                        onChange={(val) => {
+                          if (!selectedOverlayId) return;
+                          const scale = 0.5 + (val / 100);
+                          setOverlays(prev => prev.map(o => o.id === selectedOverlayId ? { ...o, fontScale: Math.max(0.5, Math.min(2, scale)) } : o));
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/70 mb-1">Horizontal Bias</div>
+                      <Slider
+                        value={(overlays.find(o => o.id === selectedOverlayId)?.hBias ?? 0) + 100}
+                        min={0}
+                        max={200}
+                        step={1}
+                        onChange={(val) => {
+                          if (!selectedOverlayId) return;
+                          const bias = val - 100; // -100..100
+                          setOverlays(prev => prev.map(o => o.id === selectedOverlayId ? { ...o, hBias: bias } : o));
+                        }}
+                        className="w-full"
+                      />
+                      <div className="text-[10px] text-white/50 mt-1">Left ◄  Center  ► Right</div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+
+              <div className="mt-6 text-sm text-white/80">Tips</div>
+              <ul className="text-xs text-white/60 list-disc pl-5 space-y-1 mt-1">
                 <li>Click a bubble to add it to the canvas.</li>
-                <li>Drag edges to resize; drag inside to move.</li>
-                <li>Double-click a panel image to crop it.</li>
+                <li>Drag inside to move, use corner dots to resize.</li>
+                <li>Double-click a bubble to edit text.</li>
+                <li>Press Backspace/Delete to remove selected bubble.</li>
               </ul>
             </div>
           </aside>
