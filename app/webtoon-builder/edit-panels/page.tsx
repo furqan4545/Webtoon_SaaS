@@ -49,6 +49,7 @@ export default function EditPanelsPage() {
   const [bubbleSrcs, setBubbleSrcs] = useState<string[]>([]);
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const canvasWidth = 800;
@@ -319,11 +320,13 @@ export default function EditPanelsPage() {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // draw panels
+    // draw panels (respect user size exactly; no aspect forcing)
     for (const p of panels) {
       try {
         const img = await loadImageSafe(p.src);
-        ctx.drawImage(img, p.x, p.y, p.width, p.height);
+        // If src is a cropped dataURL, it already encodes the crop. We draw at current size.
+        // For signed/full images, we still draw using p.width/height without cover/contain scaling.
+        ctx.drawImage(img, 0, 0, img.naturalWidth || img.width, img.naturalHeight || img.height, p.x, p.y, p.width, p.height);
       } catch {}
     }
 
@@ -331,7 +334,7 @@ export default function EditPanelsPage() {
     for (const o of overlays) {
       try {
         const img = await loadImageSafe(o.src);
-        ctx.drawImage(img, o.x, o.y, o.width, o.height);
+        ctx.drawImage(img, 0, 0, img.naturalWidth || img.width, img.naturalHeight || img.height, o.x, o.y, o.width, o.height);
       } catch {}
 
       const sidePad = Math.round(o.width * 0.10);
@@ -404,19 +407,24 @@ export default function EditPanelsPage() {
   };
 
   const handlePublishComposite = async () => {
-    const dataUrl = await generateCompositeDataUrl();
-    // Download PNG
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = 'webtoon.png';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    // Update project status as published
     try {
-      const projectId = sessionStorage.getItem('currentProjectId');
-      if (projectId) {
-        await fetch('/api/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId }) });
-      }
-    } catch {}
+      setIsPublishing(true);
+      const dataUrl = await generateCompositeDataUrl();
+      // Download PNG
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'webtoon.png';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      // Update project status as published
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        if (projectId) {
+          await fetch('/api/publish', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId }) });
+        }
+      } catch {}
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   return (
@@ -813,8 +821,15 @@ export default function EditPanelsPage() {
           <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={handlePreviewComposite}>
             Preview Webtoon
           </Button>
-          <Button className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white" onClick={handlePublishComposite}>
-            Publish Webtoon
+          <Button className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white disabled:opacity-60" onClick={handlePublishComposite} disabled={isPublishing}>
+            {isPublishing ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                Generating…
+              </span>
+            ) : (
+              'Publish Webtoon'
+            )}
           </Button>
         </div>
       </div>
