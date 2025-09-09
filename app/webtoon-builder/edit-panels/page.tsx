@@ -315,53 +315,57 @@ export default function EditPanelsPage() {
                     />
                     {o.isEditing ? (
                       <div
-                        id={`overlay-edit-${o.id}`}
-                        contentEditable
-                        suppressContentEditableWarning
-                        spellCheck={false}
-                        className="absolute inset-0 p-3 text-black whitespace-pre-wrap break-words overflow-hidden outline-none"
-                        dir="ltr"
-                        style={{
-                          transform: 'none',
-                          direction: 'ltr',            // ← keep Latin left→right
-                          unicodeBidi: 'plaintext',    // ← prevents letter reversal
-                          writingMode: 'horizontal-tb',
-                          textAlign: 'left',           // ← each new line starts at the left
-                          display: 'block',
-                          height: '100%',
-                          lineHeight: 1.2,
-                          wordBreak: 'break-word',
-                          overflowWrap: 'anywhere',    // ← makes long words wrap to fit the bubble
-                          fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
-                        }}
-                        onInput={(e) => {
-                          const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
-                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
-                        }}
-                        onBlur={() => {
-                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
-                        }}
-                        dangerouslySetInnerHTML={{ __html: (o.text || '').replace(/\n/g, '<br/>') }}
-                      />
+                      id={`overlay-edit-${o.id}`}
+                      contentEditable
+                      suppressContentEditableWarning
+                      spellCheck={false}
+                      className="absolute inset-0 p-3 text-black whitespace-pre-wrap break-words overflow-hidden outline-none"
+                      dir="ltr"
+                      style={{
+                        transform: 'none',
+                        direction: 'ltr',         // ← keep default typing
+                        unicodeBidi: 'plaintext', // ← never reverse glyph order
+                        writingMode: 'horizontal-tb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center', // center the block in the bubble
+                        textAlign: 'left',        // each new line starts at the left, flows downward
+                        height: '100%',
+                        lineHeight: 1.2,
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere', // keep long words inside the bubble
+                        fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
+                      }}
+                      onInput={(e) => {
+                        const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
+                        setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
+                      }}
+                      onBlur={() => {
+                        setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
+                      }}
+                      dangerouslySetInnerHTML={{ __html: (o.text || '').replace(/\n/g, '<br/>') }}
+                    />
                     ) : (
                       <div
-                        className="absolute inset-0 p-3 text-black whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
-                        dir="ltr"
-                        style={{
-                          transform: 'none',
-                          direction: 'ltr',            // ← same as above so it doesn’t flip on blur
-                          unicodeBidi: 'plaintext',
-                          writingMode: 'horizontal-tb',
-                          textAlign: 'left',           // ← new lines flow downward from the left
-                          display: 'block',
-                          height: '100%',
-                          lineHeight: 1.2,
-                          wordBreak: 'break-word',
-                          overflowWrap: 'anywhere',    // ← keep text inside the bubble
-                          fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
-                        }}
+                      className="absolute inset-0 p-3 text-black whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
+                      dir="ltr"
+                      style={{
+                        transform: 'none',
+                        direction: 'ltr',
+                        unicodeBidi: 'plaintext', // ← must match editor to avoid flip on blur
+                        writingMode: 'horizontal-tb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'left',
+                        height: '100%',
+                        lineHeight: 1.2,
+                        wordBreak: 'break-word',
+                        overflowWrap: 'anywhere',
+                        fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
+                      }}
                       >
-                        <span>{o.text || ''}</span>
+                      <span style={{ maxWidth: '92%' }}>{o.text || ''}</span>
                       </div>
                     )}
                   </div>
