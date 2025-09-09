@@ -319,10 +319,10 @@ export default function EditPanelsPage() {
                         contentEditable
                         suppressContentEditableWarning
                         className="absolute inset-0 p-3 text-black text-center whitespace-pre-wrap break-words overflow-hidden outline-none"
-                        dir="ltr"
+                        dir="rtl"
                         style={{
                           transform: 'none',
-                          direction: 'ltr',
+                          direction: 'rtl',
                           unicodeBidi: 'plaintext',
                           writingMode: 'horizontal-tb',
                           textAlign: 'center',
@@ -350,7 +350,7 @@ export default function EditPanelsPage() {
                         dir="ltr"
                         style={{
                           transform: 'none',
-                          direction: 'ltr',
+                          direction: 'rtl',
                           unicodeBidi: 'plaintext',
                           writingMode: 'horizontal-tb',
                           textAlign: 'center',
