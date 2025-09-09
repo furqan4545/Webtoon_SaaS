@@ -315,53 +315,49 @@ export default function EditPanelsPage() {
                     />
                     {o.isEditing ? (
                       <div
-                      id={`overlay-edit-${o.id}`}
-                      contentEditable
-                      suppressContentEditableWarning
-                      spellCheck={false}
-                      className="absolute inset-0 p-3 text-black text-right whitespace-pre-wrap break-words overflow-hidden outline-none"
-                      dir="rtl"
-                      style={{
-                        transform: 'none',
-                        direction: 'rtl',
-                        unicodeBidi: 'bidi-override',   // 👈 force visual RTL for Latin too
-                        writingMode: 'horizontal-tb',
-                        textAlign: 'right',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-end',
-                        height: '100%',
-                        minHeight: '100%',
-                        lineHeight: 1.2,
-                        wordBreak: 'break-word',
-                        fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
-                      }}
-                      onInput={(e) => {
-                        const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
-                        setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
-                      }}
-                      onBlur={() => {
-                        setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
-                      }}
-                      dangerouslySetInnerHTML={{ __html: (o.text || '').replace(/\n/g, '<br/>') }}
-                    />
-                    ) : (
-                      <div
-                        className="absolute inset-0 p-3 text-black text-right whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
-                        dir="rtl"
+                        id={`overlay-edit-${o.id}`}
+                        contentEditable
+                        suppressContentEditableWarning
+                        spellCheck={false}
+                        className="absolute inset-0 p-3 text-black whitespace-pre-wrap break-words overflow-hidden outline-none"
+                        dir="ltr"
                         style={{
                           transform: 'none',
-                          direction: 'rtl',
-                          unicodeBidi: 'bidi-override',   // 👈 same here
+                          direction: 'ltr',            // ← keep Latin left→right
+                          unicodeBidi: 'plaintext',    // ← prevents letter reversal
                           writingMode: 'horizontal-tb',
-                          textAlign: 'right',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'flex-end',
+                          textAlign: 'left',           // ← each new line starts at the left
+                          display: 'block',
                           height: '100%',
-                          minHeight: '100%',
                           lineHeight: 1.2,
                           wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',    // ← makes long words wrap to fit the bubble
+                          fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
+                        }}
+                        onInput={(e) => {
+                          const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
+                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
+                        }}
+                        onBlur={() => {
+                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
+                        }}
+                        dangerouslySetInnerHTML={{ __html: (o.text || '').replace(/\n/g, '<br/>') }}
+                      />
+                    ) : (
+                      <div
+                        className="absolute inset-0 p-3 text-black whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
+                        dir="ltr"
+                        style={{
+                          transform: 'none',
+                          direction: 'ltr',            // ← same as above so it doesn’t flip on blur
+                          unicodeBidi: 'plaintext',
+                          writingMode: 'horizontal-tb',
+                          textAlign: 'left',           // ← new lines flow downward from the left
+                          display: 'block',
+                          height: '100%',
+                          lineHeight: 1.2,
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',    // ← keep text inside the bubble
                           fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
                         }}
                       >
