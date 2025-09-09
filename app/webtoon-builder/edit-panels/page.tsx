@@ -308,6 +308,25 @@ export default function EditPanelsPage() {
     }
   };
 
+  const drawContain = (
+    ctx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    x: number,
+    y: number,
+    boxW: number,
+    boxH: number
+  ) => {
+    const natW = (img as any).naturalWidth || img.width;
+    const natH = (img as any).naturalHeight || img.height;
+    if (!natW || !natH || !boxW || !boxH) return;
+    const scale = Math.min(boxW / natW, boxH / natH);
+    const dw = Math.round(natW * scale);
+    const dh = Math.round(natH * scale);
+    const dx = Math.round(x + (boxW - dw) / 2);
+    const dy = Math.round(y + (boxH - dh) / 2);
+    ctx.drawImage(img, 0, 0, natW, natH, dx, dy, dw, dh);
+  };
+
   const generateCompositeDataUrl = async (): Promise<string> => {
     const canvas = document.createElement('canvas');
     canvas.width = canvasWidth;
@@ -320,13 +339,11 @@ export default function EditPanelsPage() {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // draw panels (respect user size exactly; no aspect forcing)
+    // draw panels (object-fit: contain)
     for (const p of panels) {
       try {
         const img = await loadImageSafe(p.src);
-        // If src is a cropped dataURL, it already encodes the crop. We draw at current size.
-        // For signed/full images, we still draw using p.width/height without cover/contain scaling.
-        ctx.drawImage(img, 0, 0, img.naturalWidth || img.width, img.naturalHeight || img.height, p.x, p.y, p.width, p.height);
+        drawContain(ctx, img, p.x, p.y, p.width, p.height);
       } catch {}
     }
 
@@ -334,7 +351,7 @@ export default function EditPanelsPage() {
     for (const o of overlays) {
       try {
         const img = await loadImageSafe(o.src);
-        ctx.drawImage(img, 0, 0, img.naturalWidth || img.width, img.naturalHeight || img.height, o.x, o.y, o.width, o.height);
+        drawContain(ctx, img, o.x, o.y, o.width, o.height);
       } catch {}
 
       const sidePad = Math.round(o.width * 0.10);
