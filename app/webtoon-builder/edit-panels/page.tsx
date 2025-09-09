@@ -32,6 +32,7 @@ type OverlayItem = {
   fontFamily?: string;
   fontScale?: number; // 0.5 - 2.0
   hBias?: number; // -100 .. 100 (negative -> push left, positive -> push right)
+  vBias?: number; // -100 .. 100 (negative -> push up, positive -> push down)
 };
 
 export default function EditPanelsPage() {
@@ -191,6 +192,7 @@ export default function EditPanelsPage() {
         fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
         fontScale: 1,
         hBias: 0,
+        vBias: 0,
       };
       setOverlays(prev => [...prev, item]);
       setSelectedOverlayId(id);
@@ -409,10 +411,10 @@ export default function EditPanelsPage() {
                         const sidePad = Math.round(o.width * 0.10);   // avoid stroke
                         // const topPad  = Math.round(o.height * 0.10);  // top inset
                         // const botPad  = Math.round(o.height * 0.22);  // bottom inset (tail room)
-                        const topPad  = Math.round(o.height * 0.08);  // top inset (reduced)
-                        const botPad  = Math.round(o.height * 0.24);
+                        const topBase = Math.round(o.height * 0.08);  // base top inset
+                        const botBase = Math.round(o.height * 0.24);  // base bottom inset
                         const basePx  = Math.max(12, Math.min(40,
-                                        Math.floor((o.height - topPad - botPad) * 0.25)));
+                                        Math.floor((o.height - topBase - botBase) * 0.25)));
                         const fontPx  = Math.round(basePx * (o.fontScale || 1));
                         const biasPct = Math.max(-100, Math.min(100, o.hBias ?? 0));
                         const totalPad = sidePad * 2;
@@ -420,12 +422,18 @@ export default function EditPanelsPage() {
                         const halfBias = Math.round((contentWidth * Math.abs(biasPct) / 100) / 2);
                         const leftPad  = biasPct > 0 ? sidePad + halfBias : sidePad;
                         const rightPad = biasPct < 0 ? sidePad + halfBias : sidePad;
+
+                        const vBiasPct = Math.max(-100, Math.min(100, o.vBias ?? 0));
+                        const contentHeight = Math.max(0, o.height - (topBase + botBase));
+                        const halfVBias = Math.round((contentHeight * Math.abs(vBiasPct) / 100) / 2);
+                        const topPad  = topBase  + (vBiasPct > 0 ? halfVBias : 0);   // >0 move text down
+                        const bottomPad = botBase + (vBiasPct < 0 ? halfVBias : 0);   // <0 move text up
                 
                         return (
                           <div
                             className="absolute"
                             style={{
-                              left: leftPad, right: rightPad, top: topPad, bottom: botPad,
+                              left: leftPad, right: rightPad, top: topPad, bottom: bottomPad,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
@@ -615,6 +623,22 @@ export default function EditPanelsPage() {
                         className="w-full"
                       />
                       <div className="text-[10px] text-white/50 mt-1">Left ◄  Center  ► Right</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/70 mb-1">Vertical Bias</div>
+                      <Slider
+                        value={(overlays.find(o => o.id === selectedOverlayId)?.vBias ?? 0) + 100}
+                        min={0}
+                        max={200}
+                        step={1}
+                        onChange={(val) => {
+                          if (!selectedOverlayId) return;
+                          const bias = val - 100; // -100..100
+                          setOverlays(prev => prev.map(o => o.id === selectedOverlayId ? { ...o, vBias: bias } : o));
+                        }}
+                        className="w-full"
+                      />
+                      <div className="text-[10px] text-white/50 mt-1">Up ▲  Center  ▼ Down</div>
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
