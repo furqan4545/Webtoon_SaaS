@@ -302,70 +302,76 @@ export default function EditPanelsPage() {
                   <div className="relative w-full h-full">
                     <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' as any, pointerEvents: 'none', transform: 'none' }} draggable={false} />
                     {/* Full-cover drag handle; disabled while editing to allow typing */}
+                    {/* Double-click the bubble to start editing */}
                     <div
                       className="overlay-handle absolute inset-0"
                       style={{ cursor: o.isEditing ? 'text' : 'move', pointerEvents: o.isEditing ? 'none' : 'auto' }}
                       onDoubleClick={() => {
                         setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: true } : oo));
-                        setTimeout(() => {
-                          const el = document.getElementById(`overlay-edit-${o.id}`) as HTMLDivElement | null;
-                          el?.focus();
-                        }, 0);
+                        setTimeout(() => document.getElementById(`overlay-edit-${o.id}`)?.focus(), 0);
                       }}
                     />
+
                     {o.isEditing ? (
-                      <div
-                      id={`overlay-edit-${o.id}`}
-                      contentEditable
-                      suppressContentEditableWarning
-                      spellCheck={false}
-                      className="absolute inset-0 p-3 text-black whitespace-pre-wrap break-words overflow-hidden outline-none"
-                      dir="ltr"
-                      style={{
-                        transform: 'none',
-                        direction: 'ltr',         // ← keep default typing
-                        unicodeBidi: 'plaintext', // ← never reverse glyph order
-                        writingMode: 'horizontal-tb',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center', // center the block in the bubble
-                        textAlign: 'left',        // each new line starts at the left, flows downward
-                        height: '100%',
-                        lineHeight: 1.2,
-                        wordBreak: 'break-word',
-                        overflowWrap: 'anywhere', // keep long words inside the bubble
-                        fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
-                      }}
-                      onInput={(e) => {
-                        const text = (e.currentTarget.innerText || '').replace(/\u00A0/g, ' ');
-                        setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
-                      }}
-                      onBlur={() => {
-                        setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
-                      }}
-                      dangerouslySetInnerHTML={{ __html: (o.text || '').replace(/\n/g, '<br/>') }}
-                    />
+                      // EDIT MODE: plain textarea (LTR forced, isolated from bidi)
+                      <textarea
+                        id={`overlay-edit-${o.id}`}
+                        value={o.text}
+                        onChange={(e) => {
+                          const text = e.currentTarget.value;
+                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, text } : oo));
+                        }}
+                        onBlur={() => {
+                          setOverlays(prev => prev.map(oo => oo.id === o.id ? { ...oo, isEditing: false } : oo));
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') (e.currentTarget as HTMLTextAreaElement).blur();
+                        }}
+                        className="absolute inset-0 p-3 bubble-textarea"
+                        style={{
+                          background: 'transparent',
+                          color: '#000',
+                          border: 'none',
+                          outline: 'none',
+                          resize: 'none',
+                          width: '100%',
+                          height: '100%',
+                          // force normal LTR, isolate from any ancestor bidi weirdness
+                          direction: 'ltr',
+                          unicodeBidi: 'isolate-override' as any,
+                          writingMode: 'horizontal-tb',
+                          // layout
+                          display: 'block',
+                          textAlign: 'left',
+                          lineHeight: 1.25,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',
+                          overflow: 'hidden',
+                          fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
+                        }}
+                        spellCheck={false}
+                      />
                     ) : (
+                      // VIEW MODE: static text (pointer-events off so the whole card drags)
                       <div
-                      className="absolute inset-0 p-3 text-black whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
-                      dir="ltr"
-                      style={{
-                        transform: 'none',
-                        direction: 'ltr',
-                        unicodeBidi: 'plaintext', // ← must match editor to avoid flip on blur
-                        writingMode: 'horizontal-tb',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        textAlign: 'left',
-                        height: '100%',
-                        lineHeight: 1.2,
-                        wordBreak: 'break-word',
-                        overflowWrap: 'anywhere',
-                        fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
-                      }}
+                        className="absolute inset-0 p-3 pointer-events-none bubble-text"
+                        style={{
+                          direction: 'ltr',
+                          unicodeBidi: 'isolate-override' as any,
+                          writingMode: 'horizontal-tb',
+                          display: 'block',
+                          textAlign: 'left',
+                          lineHeight: 1.25,
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',
+                          overflow: 'hidden',
+                          fontSize: `${Math.max(12, Math.min(36, Math.floor(o.height * 0.18)))}px`,
+                          color: '#000',
+                        }}
                       >
-                      <span style={{ maxWidth: '92%' }}>{o.text || ''}</span>
+                        <span style={{ maxWidth: '92%', display: 'inline-block' }}>{o.text || ''}</span>
                       </div>
                     )}
                   </div>

@@ -167,3 +167,12 @@
   animation: gradientShift 2s linear infinite;
   box-shadow: 0 0 20px rgba(168,85,247,0.35);
 }
+
+
+
+.bubble-text,
+.bubble-textarea {
+  direction: ltr !important;
+  unicode-bidi: isolate-override !important;
+  writing-mode: horizontal-tb !important;
+}
