@@ -300,7 +300,7 @@ export default function EditPanelsPage() {
                   dragHandleClassName="overlay-handle"
                 >
                   <div className="relative w-full h-full">
-                    <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' as any, pointerEvents: 'none', transform: 'scaleX(-1)' }} draggable={false} />
+                    <img src={o.src} alt={o.id} style={{ width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' as any, pointerEvents: 'none', transform: 'none' }} draggable={false} />
                     {/* Full-cover drag handle; disabled while editing to allow typing */}
                     <div
                       className="overlay-handle absolute inset-0"
@@ -321,7 +321,7 @@ export default function EditPanelsPage() {
                         className="absolute inset-0 p-3 text-black text-center whitespace-pre-wrap break-words overflow-hidden outline-none"
                         dir="ltr"
                         style={{
-                          transform: 'scaleX(-1)',
+                          transform: 'none',
                           direction: 'ltr',
                           unicodeBidi: 'plaintext',
                           writingMode: 'horizontal-tb',
@@ -349,7 +349,7 @@ export default function EditPanelsPage() {
                         className="absolute inset-0 p-3 text-black text-center whitespace-pre-wrap break-words overflow-hidden pointer-events-none"
                         dir="ltr"
                         style={{
-                          transform: 'scaleX(-1)',
+                          transform: 'none',
                           direction: 'ltr',
                           unicodeBidi: 'plaintext',
                           writingMode: 'horizontal-tb',
