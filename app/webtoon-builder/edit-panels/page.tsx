@@ -411,15 +411,15 @@ export default function EditPanelsPage() {
   };
 
   const handlePreviewComposite = async () => {
-    const dataUrl = await generateCompositeDataUrl();
-    const w = window.open('about:blank');
-    if (w) {
-      const img = new Image();
-      img.src = dataUrl;
-      img.style.maxWidth = '100%';
-      img.style.display = 'block';
-      w.document.body.style.margin = '0';
-      w.document.body.appendChild(img);
+    try {
+      setIsPublishing(true);
+      const dataUrl = await generateCompositeDataUrl();
+      const win = window.open('/webtoon-builder/preview', '_blank');
+      setTimeout(() => {
+        try { win?.postMessage({ type: 'webtoon-preview-composite', image: dataUrl }, window.location.origin); } catch {}
+      }, 300);
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -835,8 +835,15 @@ export default function EditPanelsPage() {
       {/* Footer actions */}
       <div className="mx-auto max-w-[1600px] px-4 pb-10">
         <div className="flex items-center justify-center gap-3">
-          <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={handlePreviewComposite}>
-            Preview Webtoon
+          <Button variant="outline" className="border-white/20 text-white hover:bg-white/10 disabled:opacity-60" onClick={handlePreviewComposite} disabled={isPublishing}>
+            {isPublishing ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                Building…
+              </span>
+            ) : (
+              'Preview Webtoon'
+            )}
           </Button>
           <Button className="bg-gradient-to-r from-fuchsia-500 to-indigo-400 text-white disabled:opacity-60" onClick={handlePublishComposite} disabled={isPublishing}>
             {isPublishing ? (
