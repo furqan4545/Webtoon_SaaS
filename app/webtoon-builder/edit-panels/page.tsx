@@ -50,6 +50,7 @@ export default function EditPanelsPage() {
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null);
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
+  const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
   const canvasWidth = 800;
@@ -412,14 +413,25 @@ export default function EditPanelsPage() {
 
   const handlePreviewComposite = async () => {
     try {
-      setIsPublishing(true);
+      setIsPreviewing(true);
       const dataUrl = await generateCompositeDataUrl();
       const win = window.open('/webtoon-builder/preview', '_blank');
-      setTimeout(() => {
+      const send = () => {
         try { win?.postMessage({ type: 'webtoon-preview-composite', image: dataUrl }, window.location.origin); } catch {}
-      }, 300);
+      };
+      const onReady = (e: MessageEvent) => {
+        if (e.origin !== window.location.origin) return;
+        if (e.data?.type === 'preview-ready') {
+          send();
+          window.removeEventListener('message', onReady as any);
+        }
+      };
+      window.addEventListener('message', onReady as any);
+      // Fallback send in case the ready message is missed due to timing
+      setTimeout(send, 400);
+      setTimeout(send, 900);
     } finally {
-      setIsPublishing(false);
+      setIsPreviewing(false);
     }
   };
 
@@ -835,8 +847,8 @@ export default function EditPanelsPage() {
       {/* Footer actions */}
       <div className="mx-auto max-w-[1600px] px-4 pb-10">
         <div className="flex items-center justify-center gap-3">
-          <Button variant="outline" className="border-white/20 text-white hover:bg-white/10 disabled:opacity-60" onClick={handlePreviewComposite} disabled={isPublishing}>
-            {isPublishing ? (
+          <Button variant="outline" className="border-white/20 text-white hover:bg-white/10 disabled:opacity-60" onClick={handlePreviewComposite} disabled={isPreviewing}>
+            {isPreviewing ? (
               <span className="inline-flex items-center gap-2">
                 <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                 Building…
