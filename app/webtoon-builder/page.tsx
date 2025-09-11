@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Wand2, ChevronLeft, Send } from "lucide-react";
+import { Undo2, Redo2, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ChangeArtStyleDialog from "@/components/ChangeArtStyleDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +46,9 @@ export default function WebtoonBuilder() {
   const [blockingFirstPanel, setBlockingFirstPanel] = useState<boolean>(false);
   const [deletingSceneNos, setDeletingSceneNos] = useState<number[]>([]);
   const deleteQueueProcessingRef = useRef<boolean>(false); // legacy; not used with new approach
+  const [savingSceneNos, setSavingSceneNos] = useState<number[]>([]);
+  const [historyCursorByScene, setHistoryCursorByScene] = useState<Record<number, number>>({});
+  const [redoCurrentByScene, setRedoCurrentByScene] = useState<Record<number, string | undefined>>({});
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -84,6 +88,46 @@ export default function WebtoonBuilder() {
   };
   const incDeletingCount = (pid: string) => setDeletingCount(pid, getDeletingCount(pid) + 1);
   const decDeletingCount = (pid: string) => setDeletingCount(pid, Math.max(0, getDeletingCount(pid) - 1));
+  const getPanelHistoryKey = (pid: string, sceneNo: number) => `panelHistory:${pid}:${sceneNo}`;
+  const readPanelHistory = (pid: string, sceneNo: number): string[] => {
+    try {
+      const raw = sessionStorage.getItem(getPanelHistoryKey(pid, sceneNo));
+      const arr = raw ? (JSON.parse(raw) as string[]) : [];
+      return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string' && !!x) : [];
+    } catch {
+      return [];
+    }
+  };
+  const writePanelHistory = (pid: string, sceneNo: number, images: string[]) => {
+    try {
+      const trimmed = images.filter(Boolean).slice(-3);
+      sessionStorage.setItem(getPanelHistoryKey(pid, sceneNo), JSON.stringify(trimmed));
+    } catch {}
+  };
+  const pushPanelHistory = (pid: string, sceneNo: number, image: string | undefined | null) => {
+    if (!image) return;
+    const arr = readPanelHistory(pid, sceneNo);
+    if (arr[arr.length - 1] === image) return;
+    arr.push(image);
+    writePanelHistory(pid, sceneNo, arr);
+  };
+  const clearAllPanelHistoriesForProject = (pid: string) => {
+    try {
+      const keys: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith(`panelHistory:${pid}:`)) keys.push(k);
+      }
+      for (const k of keys) sessionStorage.removeItem(k);
+    } catch {}
+  };
+  const getSceneNoForIndex = (scene: any, index: number) => {
+    const parsed = Number(String(scene?.id || '').split('_')[1]);
+    return Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (index + 1));
+  };
+  const getCursor = (sceneNo: number) => (historyCursorByScene[sceneNo] ?? 0);
+  const setCursor = (sceneNo: number, value: number) => setHistoryCursorByScene((m) => ({ ...m, [sceneNo]: value }));
+  const setRedoCurrent = (sceneNo: number, img?: string) => setRedoCurrentByScene((m) => ({ ...m, [sceneNo]: img }));
   const refreshScenesFromDb = async (pid: string) => {
     const r = await fetch(`/api/generated-scenes?projectId=${encodeURIComponent(pid)}`, { cache: 'no-store' });
     const j = await r.json();
@@ -129,6 +173,16 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true, generationPhase: 'image' } : s));
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
+      // Push current image to panel history before generating a new one
+      try {
+        const currentImage = scenes[index]?.imageDataUrl;
+        const sceneNo = getSceneNoForIndex(scenes[index], index);
+        if (projectId && currentImage) {
+          pushPanelHistory(projectId, sceneNo, currentImage);
+          setCursor(sceneNo, 0);
+          setRedoCurrent(sceneNo, undefined);
+        }
+      } catch {}
       const characterImages: Array<{ name: string; dataUrl: string }> = pickSafeRefsForPayload(refImages);
       const res = await fetch('/api/generate-scene-image', {
         method: 'POST',
@@ -243,6 +297,10 @@ export default function WebtoonBuilder() {
         // If there are pending deletes from a previous navigation/refresh, process them first and block UI
         // Clean up any legacy flags from previous logic
         try { sessionStorage.removeItem(getDeletingFlagKey(projectId)); } catch {}
+        // Reset per-panel undo/redo histories on reload
+        if (isReloadRef.current) {
+          clearAllPanelHistoriesForProject(projectId);
+        }
 
         // Load art style (optional)
         try {
@@ -490,6 +548,14 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
+      try {
+        const sceneNo = getSceneNoForIndex(scene, index);
+        pushPanelHistory(projectId || '', sceneNo, scene.imageDataUrl);
+        if (projectId) {
+          setCursor(sceneNo, 0);
+          setRedoCurrent(sceneNo, undefined);
+        }
+      } catch {}
       const res = await fetch('/api/remove-background', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -514,6 +580,14 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
+      try {
+        const sceneNo = getSceneNoForIndex(scene, index);
+        pushPanelHistory(projectId || '', sceneNo, scene.imageDataUrl);
+        if (projectId) {
+          setCursor(sceneNo, 0);
+          setRedoCurrent(sceneNo, undefined);
+        }
+      } catch {}
       const res = await fetch('/api/edit-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -535,6 +609,68 @@ export default function WebtoonBuilder() {
   const handleQuick = (q: string) => {
     setChatDraft((prev) => (prev ? `${prev} ${q}` : q));
     setTimeout(() => chatInputRef.current?.focus(), 0);
+  };
+
+  const handleUndo = (index: number) => {
+    const projectId = sessionStorage.getItem('currentProjectId') || '';
+    const scene = scenes[index];
+    const sceneNo = getSceneNoForIndex(scene, index);
+    const hist = readPanelHistory(projectId, sceneNo);
+    const cursor = getCursor(sceneNo);
+    const maxSteps = Math.min(2, hist.length);
+    if (cursor >= maxSteps) return;
+    const newCursor = cursor + 1;
+    if (cursor === 0) {
+      setRedoCurrent(sceneNo, scene?.imageDataUrl);
+    }
+    const newImage = hist[hist.length - newCursor];
+    if (!newImage) return;
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImage } : s));
+    setCursor(sceneNo, newCursor);
+  };
+
+  const handleRedo = (index: number) => {
+    const projectId = sessionStorage.getItem('currentProjectId') || '';
+    const scene = scenes[index];
+    const sceneNo = getSceneNoForIndex(scene, index);
+    const hist = readPanelHistory(projectId, sceneNo);
+    const cursor = getCursor(sceneNo);
+    if (cursor <= 0) return;
+    const newCursor = cursor - 1;
+    let newImage: string | undefined;
+    if (newCursor === 0) {
+      newImage = redoCurrentByScene[sceneNo];
+      setRedoCurrent(sceneNo, undefined);
+    } else {
+      newImage = hist[hist.length - newCursor];
+    }
+    if (!newImage) return;
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImage } : s));
+    setCursor(sceneNo, newCursor);
+  };
+
+  const handleSaveCurrentImageToSupabase = async (index: number) => {
+    try {
+      const projectId = sessionStorage.getItem('currentProjectId');
+      if (!projectId) return;
+      const scene = scenes[index];
+      const sceneNo = getSceneNoForIndex(scene, index);
+      const img = scene?.imageDataUrl;
+      if (!img) return;
+      setSavingSceneNos(prev => prev.includes(sceneNo) ? prev : [...prev, sceneNo]);
+      const res = await fetch('/api/save-scene-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, sceneNo: sceneNo, imageDataUrl: img })
+      });
+      await res.json().catch(() => ({}));
+    } catch {}
+    finally {
+      const projectId = sessionStorage.getItem('currentProjectId') || '';
+      const scene = scenes[index];
+      const sceneNo = getSceneNoForIndex(scene, index);
+      setSavingSceneNos(prev => prev.filter(n => n !== sceneNo));
+    }
   };
 
   const handleSend = (e: any) => {
@@ -597,7 +733,55 @@ export default function WebtoonBuilder() {
               <Card className={`border-white/10 bg-white/5 backdrop-blur-sm ${loading ? '' : 'cursor-pointer'} ${!loading && selectedSceneIndex === i ? 'ring-2 ring-fuchsia-500/60' : ''}`}>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-white">Scene {i + 1}</CardTitle>
-                  <button
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const projectId = getProjectId();
+                      const sceneNo = (() => { const p = Number(String(scene?.id || '').split('_')[1]); return Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(p) ? p : (i + 1)); })();
+                      const hist = readPanelHistory(projectId, sceneNo);
+                      const cursor = historyCursorByScene[sceneNo] ?? 0;
+                      const maxSteps = Math.min(2, hist.length);
+                      const showUndo = maxSteps > 0;
+                      const showRedo = cursor > 0;
+                      const showSave = cursor > 0;
+                      const isSaving = savingSceneNos.includes(sceneNo);
+                      return (
+                        <>
+                          {showSave && (
+                            <button
+                              aria-label="Save image to Supabase"
+                              className={`text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-0.5 text-sm ${isSaving ? 'opacity-60 cursor-not-allowed' : ''}`}
+                              onClick={(e) => { e.stopPropagation(); if (!isSaving) handleSaveCurrentImageToSupabase(i); }}
+                              disabled={isSaving}
+                            >
+                              {isSaving ? (
+                                <div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                              ) : (
+                                <Save className="h-4 w-4" />
+                              )}
+                            </button>
+                          )}
+                          {showUndo && (
+                            <button
+                              aria-label="Undo"
+                              className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-0.5 text-sm"
+                              onClick={(e) => { e.stopPropagation(); handleUndo(i); }}
+                            >
+                              <Undo2 className="h-4 w-4" />
+                            </button>
+                          )}
+                          {showRedo && (
+                            <button
+                              aria-label="Redo"
+                              className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-0.5 text-sm"
+                              onClick={(e) => { e.stopPropagation(); handleRedo(i); }}
+                            >
+                              <Redo2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+                    <button
                     aria-label="Delete scene"
                     className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-0.5 text-sm"
                     onClick={async (e) => {
@@ -630,6 +814,7 @@ export default function WebtoonBuilder() {
                   >
                     ×
                   </button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3 relative">
                   {(() => {
