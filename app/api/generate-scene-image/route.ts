@@ -49,8 +49,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
     }
     const model = 'gemini-2.5-flash-image-preview';
-    // Align with working edit API but force image output to avoid text-only replies
-    const config = { responseModalities: ['IMAGE'], responseMimeType: 'image/png' } as any;
+    // Align with working edit API: request image (and allow text) without forcing a mime type
+    const config = { responseModalities: ['IMAGE', 'TEXT'] } as any;
 
     const refsList = Array.isArray(characterImages)
       ? characterImages.filter((c: any) => !!c?.dataUrl)
