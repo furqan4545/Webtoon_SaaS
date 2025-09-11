@@ -43,6 +43,7 @@ export default function WebtoonBuilder() {
   const [isFirstLoad, setIsFirstLoad] = useState<boolean>(true);
   const [credits, setCredits] = useState<{ remaining: number; resetsAt?: string } | null>(null);
   const [blockingFirstPanel, setBlockingFirstPanel] = useState<boolean>(false);
+  const deleteQueueProcessingRef = useRef<boolean>(false);
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -68,6 +69,52 @@ export default function WebtoonBuilder() {
         return { ...s, imageDataUrl: results[sceneNo] || s.imageDataUrl };
       }));
     } catch {}
+  };
+
+  const getProjectId = () => sessionStorage.getItem('currentProjectId') || '';
+  const getScenesCacheKey = (pid: string) => `scenes:${pid}`;
+  const getDeleteQueueKey = (pid: string) => `pendingSceneDeletes:${pid}`;
+  const readDeleteQueue = (pid: string): number[] => {
+    try { return JSON.parse(sessionStorage.getItem(getDeleteQueueKey(pid)) || '[]') as number[]; } catch { return []; }
+  };
+  const writeDeleteQueue = (pid: string, arr: number[]) => {
+    try { sessionStorage.setItem(getDeleteQueueKey(pid), JSON.stringify(arr)); } catch {}
+  };
+  const enqueueDelete = (pid: string, sceneNo: number) => {
+    const q = readDeleteQueue(pid);
+    if (!q.includes(sceneNo)) q.push(sceneNo);
+    writeDeleteQueue(pid, q);
+  };
+  const processDeleteQueue = async (pid: string) => {
+    if (deleteQueueProcessingRef.current) return;
+    const q = readDeleteQueue(pid);
+    if (!q.length) return;
+    deleteQueueProcessingRef.current = true;
+    setBlockingFirstPanel(true);
+    try {
+      while (true) {
+        const queue = readDeleteQueue(pid);
+        const next = queue[0];
+        if (typeof next !== 'number') break;
+        try {
+          await fetch('/api/delete-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: pid, sceneNo: next }) });
+        } catch {}
+        // pop head
+        queue.shift();
+        writeDeleteQueue(pid, queue);
+      }
+      // Refresh cache from DB once after processing
+      try {
+        const r = await fetch(`/api/generated-scenes?projectId=${encodeURIComponent(pid)}`, { cache: 'no-store' });
+        const j = await r.json();
+        const existingScenes = Array.isArray(j.scenes) ? j.scenes : [];
+        const items: SceneItem[] = existingScenes.map((s: any) => ({ id: `scene_${s.scene_no}`, storyText: s.story_text || '', description: s.scene_description || '', sceneNo: Number(s.scene_no) }));
+        try { localStorage.setItem(getScenesCacheKey(pid), JSON.stringify(items)); } catch {}
+      } catch {}
+    } finally {
+      setBlockingFirstPanel(false);
+      deleteQueueProcessingRef.current = false;
+    }
   };
   const quickActions = [
     "More dramatic",
@@ -215,6 +262,12 @@ export default function WebtoonBuilder() {
           setError('No project selected.');
           setLoading(false);
           return;
+        }
+
+        // If there are pending deletes from a previous navigation/refresh, process them first and block UI
+        const pendingDeletes = readDeleteQueue(projectId);
+        if (pendingDeletes.length > 0) {
+          await processDeleteQueue(projectId);
         }
 
         // Load art style (optional)
@@ -579,22 +632,11 @@ export default function WebtoonBuilder() {
                       if (!projectId) return;
                       const parsed = Number(String(scene?.id || '').split('_')[1]);
                       const sceneNo = Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
-                      // Optimistic local remove
+                      // Queue delete and process in background; block with loader across refreshes
+                      enqueueDelete(projectId, sceneNo);
+                      // Optimistic local update only; do not force refetch here
                       setScenes(prev => prev.filter((_, idx) => idx !== i));
-                      try {
-                        const res = await fetch('/api/delete-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, sceneNo }) });
-                        if (!res.ok) throw new Error('delete failed');
-                        // Reload scenes from DB to reflect authoritative state
-                        try {
-                          const r = await fetch(`/api/generated-scenes?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
-                          const j = await r.json();
-                          const existingScenes = Array.isArray(j.scenes) ? j.scenes : [];
-                          const items: SceneItem[] = existingScenes.map((s: any) => ({ id: `scene_${s.scene_no}`, storyText: s.story_text || '', description: s.scene_description || '', sceneNo: Number(s.scene_no) }));
-                          setScenes(items);
-                          try { localStorage.setItem(`scenes:${projectId}`, JSON.stringify(items)); } catch {}
-                          await applyGeneratedSceneImages(projectId);
-                        } catch {}
-                      } catch {}
+                      processDeleteQueue(projectId);
                     }}
                   >
                     ×
