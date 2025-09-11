@@ -49,6 +49,7 @@ export default function WebtoonBuilder() {
   const [savingSceneNos, setSavingSceneNos] = useState<number[]>([]);
   const [historyCursorByScene, setHistoryCursorByScene] = useState<Record<number, number>>({});
   const [redoCurrentByScene, setRedoCurrentByScene] = useState<Record<number, string | undefined>>({});
+  const [saveSuppressedByScene, setSaveSuppressedByScene] = useState<Record<number, boolean>>({});
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -627,6 +628,8 @@ export default function WebtoonBuilder() {
     if (!newImage) return;
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImage } : s));
     setCursor(sceneNo, newCursor);
+    // Undo clears save suppression, making Save visible again
+    setSaveSuppressedByScene((m) => ({ ...m, [sceneNo]: false }));
   };
 
   const handleRedo = (index: number) => {
@@ -647,6 +650,7 @@ export default function WebtoonBuilder() {
     if (!newImage) return;
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImage } : s));
     setCursor(sceneNo, newCursor);
+    // Redo doesn't change suppression; it follows cursor logic
   };
 
   const handleSaveCurrentImageToSupabase = async (index: number) => {
@@ -670,6 +674,8 @@ export default function WebtoonBuilder() {
       const scene = scenes[index];
       const sceneNo = getSceneNoForIndex(scene, index);
       setSavingSceneNos(prev => prev.filter(n => n !== sceneNo));
+      // After a successful save, suppress Save until next undo
+      setSaveSuppressedByScene((m) => ({ ...m, [sceneNo]: true }));
     }
   };
 
@@ -742,7 +748,7 @@ export default function WebtoonBuilder() {
                       const maxSteps = Math.min(2, hist.length);
                       const showUndo = maxSteps > 0;
                       const showRedo = cursor > 0;
-                      const showSave = cursor > 0;
+                      const showSave = cursor > 0 && !saveSuppressedByScene[sceneNo];
                       const isSaving = savingSceneNos.includes(sceneNo);
                       return (
                         <>
