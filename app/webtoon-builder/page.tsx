@@ -405,48 +405,13 @@ export default function WebtoonBuilder() {
   function isValidSceneDescription(text: string): { valid: boolean; reason?: string } {
     const t = (text || '').toLowerCase().trim();
     if (!t) return { valid: false, reason: 'empty' };
-    // Obvious chit-chat / small talk / unrelated
-    const smallTalk = [
-      'how are you', 'what\'s up', 'whats up', 'hello', 'hi', 'hey', 'thank you', 'thanks', 'ok', 'okay', 'good morning', 'good night', 'who are you'
-    ];
-    if (smallTalk.some(p => t === p || t.startsWith(p))) return { valid: false, reason: 'smalltalk' };
-    // If it's a question directly to assistant
-    if (t.includes('?') && /\byou\b/.test(t)) return { valid: false, reason: 'question' };
-
-    // Special-case: background removal/segmentation/extraction or white background directives
-    const backgroundDirectivePatterns = [
-      /\b(remove|erase|delete|cut|clear|drop|strip|segment|mask|matte|clip) (the )?background\b/,
-      /\b(make|set|turn) (the )?background (to )?(white|blank|plain)\b/,
-      /\bbackground( is)? (all )?(white|blank|plain|solid white)\b/,
-      /\bno background\b/,
-      /\b(backgroundless|bg-less|bg less)\b/,
-      /\b(extract|isolate) (the )?(character|characters|subject)s?\b/,
-      /\b(subject only|characters? only)\b/,
-      /\btransparent background\b/,
-    ];
-    if (backgroundDirectivePatterns.some((re) => re.test(t))) {
-      return { valid: true };
-    }
-    // Very short directives we still allow (quick actions like "close-up", "wider shot")
-    const directional = [
-      'close-up', 'close up', 'wider shot', 'wide shot', 'brighter lighting', 'darker lighting', 'more romantic', 'more horror', 'more dramatic', 'add dialogue',
-      'remove background', 'white background', 'make background white', 'no background', 'transparent background', 'segment background', 'extract characters', 'isolate character', 'characters only', 'subject only'
-    ];
-    if (directional.includes(t)) return { valid: true };
-    // Basic heuristic: has at least a few words and at least one action/visual cue
+    // Looser guard-rails: only block obvious greetings/small-talk
+    const smallTalk = ['how are you', 'what\'s up', 'whats up', 'hello', 'hi', 'hey'];
+    if (smallTalk.some(p => t === p || t.startsWith(p + ' '))) return { valid: false, reason: 'smalltalk' };
+    // Allow most directives and descriptions; accept if 3+ words or >= 12 chars
     const wordCount = t.split(/\s+/).filter(Boolean).length;
-    const verbs = [
-      'walk', 'run', 'look', 'stare', 'smile', 'cry', 'hug', 'kiss', 'sit', 'stand', 'hold', 'say', 'shout', 'whisper', 'fight', 'open', 'close', 'enter', 'leave', 'approach', 'turn', 'glance', 'reveal', 'show', 'pan', 'zoom'
-    ];
-    const visuals = [
-      'night', 'rain', 'sunset', 'street', 'room', 'alley', 'school', 'cafe', 'city', 'forest', 'beach', 'sky', 'camera', 'panel', 'scene', 'lighting', 'shadow', 'moon', 'sunlight'
-    ];
-    const hasVerb = verbs.some(v => new RegExp(`\\b${v}(s|ed|ing)?\\b`).test(t));
-    const hasVisual = visuals.some(v => new RegExp(`\\b${v}\\b`).test(t));
-    if (wordCount >= 6 && (hasVerb || hasVisual)) return { valid: true };
-    // Allow imperative mood starting with verbs like "make", "show", "add" if long enough
-    if (/^(make|show|add|change|turn|set)\b/.test(t) && wordCount >= 5) return { valid: true };
-    return { valid: false, reason: 'too-vague' };
+    if (wordCount >= 3 || t.length >= 12) return { valid: true };
+    return { valid: false, reason: 'too-short' };
   }
 
   const processUserText = async (text: string) => {
