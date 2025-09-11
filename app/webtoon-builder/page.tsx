@@ -43,6 +43,7 @@ export default function WebtoonBuilder() {
   const [isFirstLoad, setIsFirstLoad] = useState<boolean>(true);
   const [credits, setCredits] = useState<{ remaining: number; resetsAt?: string } | null>(null);
   const [blockingFirstPanel, setBlockingFirstPanel] = useState<boolean>(false);
+  const [deletingSceneNos, setDeletingSceneNos] = useState<number[]>([]);
   const deleteQueueProcessingRef = useRef<boolean>(false); // legacy; not used with new approach
 
   const applyGeneratedSceneImages = async (projectId: string) => {
@@ -240,17 +241,8 @@ export default function WebtoonBuilder() {
         }
 
         // If there are pending deletes from a previous navigation/refresh, process them first and block UI
-        const deletingCount = getDeletingCount(projectId);
-        const isDeletingFlag = sessionStorage.getItem(getDeletingFlagKey(projectId));
-        if (deletingCount > 0 || isDeletingFlag) {
-          setBlockingFirstPanel(true);
-          try {
-            const items = await refreshScenesFromDb(projectId);
-            setScenes(items);
-          } catch {}
-          setBlockingFirstPanel(false);
-          try { sessionStorage.removeItem(getDeletingFlagKey(projectId)); setDeletingCount(projectId, 0); } catch {}
-        }
+        // Clean up any legacy flags from previous logic
+        try { sessionStorage.removeItem(getDeletingFlagKey(projectId)); } catch {}
 
         // Load art style (optional)
         try {
@@ -615,32 +607,23 @@ export default function WebtoonBuilder() {
                       const parsed = Number(String(scene?.id || '').split('_')[1]);
                       const sceneNo = Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
                       // Queue delete and process in background; block with loader across refreshes
-                      // Optimistic local update and cache update
-                      try {
-                        const pid = projectId;
-                        const key = getScenesCacheKey(pid);
-                        const nextScenes = scenes.filter((_, idx) => idx !== i);
-                        setScenes(nextScenes);
-                        localStorage.setItem(key, JSON.stringify(nextScenes));
-                        sessionStorage.setItem(getDeletingFlagKey(pid), '1');
-                        incDeletingCount(pid);
-                      } catch {}
-                      // Fire-and-forget API; on completion, refresh cache if all deletes done
+                      // Show per-card loader, then delete server-side, then remove locally and refresh cache
+                      setDeletingSceneNos(prev => prev.includes(sceneNo) ? prev : [...prev, sceneNo]);
                       (async () => {
-                        try { await fetch('/api/delete-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, sceneNo }) }); }
-                        catch {}
-                        finally {
-                          const pid = projectId;
-                          decDeletingCount(pid);
-                          const remain = getDeletingCount(pid);
-                          if (remain === 0) {
-                            try {
-                              const items = await refreshScenesFromDb(pid);
-                              // Do not force UI rerender here unless user stayed; cache updated for next load
-                              localStorage.setItem(getScenesCacheKey(pid), JSON.stringify(items));
-                              sessionStorage.removeItem(getDeletingFlagKey(pid));
-                            } catch {}
-                          }
+                        try {
+                          const res = await fetch('/api/delete-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, sceneNo }) });
+                          if (!res.ok) throw new Error('delete failed');
+                          // Remove panel locally now
+                          setScenes(prev => prev.filter((_, idx) => idx !== i));
+                          // Refresh authoritative scenes and update cache
+                          try {
+                            const items = await refreshScenesFromDb(projectId);
+                            try { localStorage.setItem(getScenesCacheKey(projectId), JSON.stringify(items)); } catch {}
+                          } catch {}
+                        } catch (err) {
+                          // Hide loader if failed
+                        } finally {
+                          setDeletingSceneNos(prev => prev.filter(n => n !== sceneNo));
                         }
                       })();
                     }}
@@ -648,7 +631,20 @@ export default function WebtoonBuilder() {
                     ×
                   </button>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-3 relative">
+                  {(() => {
+                    const parsed = Number(String(scene?.id || '').split('_')[1]);
+                    const sceneNo = Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
+                    if (!deletingSceneNos.includes(sceneNo)) return null;
+                    return (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-black/50">
+                        <div className="flex items-center gap-2 text-white/90 text-sm">
+                          <div className="h-4 w-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                          Deleting…
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {(loading || blockingFirstPanel) && isFirstLoad ? (
                     <>
                       <div className="h-5 w-32 bg-white/10 rounded animate-pulse" />
