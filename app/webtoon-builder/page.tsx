@@ -405,9 +405,15 @@ export default function WebtoonBuilder() {
   function isValidSceneDescription(text: string): { valid: boolean; reason?: string } {
     const t = (text || '').toLowerCase().trim();
     if (!t) return { valid: false, reason: 'empty' };
-    // Looser guard-rails: only block obvious greetings/small-talk
-    const smallTalk = ['how are you', 'what\'s up', 'whats up', 'hello', 'hi', 'hey'];
+    // Block obvious greetings/small-talk and acknowledgements
+    const smallTalk = ['how are you', 'what\'s up', 'whats up', 'hello', 'hi', 'hey', 'ok', 'okay', 'thanks', 'thank you'];
     if (smallTalk.some(p => t === p || t.startsWith(p + ' '))) return { valid: false, reason: 'smalltalk' };
+    // Block questions aimed at the assistant (e.g., where are you?, who are you?)
+    if (t.includes('?') && /\byou\b/.test(t)) return { valid: false, reason: 'assistant-question' };
+    if (/\b(who|where|what|why|how)\s+are\s+you\b/.test(t)) return { valid: false, reason: 'assistant-question' };
+    // Block profanity
+    const profanity = ['fuck','fucking','shit','bitch','asshole','bastard','idiot'];
+    if (profanity.some(w => new RegExp(`(^|\n|\b)${w}(\b|\W)`).test(t))) return { valid: false, reason: 'profanity' };
     // Allow most directives and descriptions; accept if 3+ words or >= 12 chars
     const wordCount = t.split(/\s+/).filter(Boolean).length;
     if (wordCount >= 3 || t.length >= 12) return { valid: true };
@@ -556,8 +562,25 @@ export default function WebtoonBuilder() {
             {(((loading || blockingFirstPanel) && isFirstLoad) ? Array.from({ length: 4 }) : scenes).map((scene: any, i: number) => (
               <div key={scene?.id || `skeleton_${i}`} onClick={() => !loading && setSelectedSceneIndex(i)}>
               <Card className={`border-white/10 bg-white/5 backdrop-blur-sm ${loading ? '' : 'cursor-pointer'} ${!loading && selectedSceneIndex === i ? 'ring-2 ring-fuchsia-500/60' : ''}`}>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-white">Scene {i + 1}</CardTitle>
+                  <button
+                    aria-label="Delete scene"
+                    className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-0.5 text-sm"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const projectId = sessionStorage.getItem('currentProjectId');
+                      if (!projectId) return;
+                      const sceneNo = i + 1;
+                      // Optimistic local remove
+                      setScenes(prev => prev.filter((_, idx) => idx !== i));
+                      try {
+                        await fetch('/api/delete-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, sceneNo }) });
+                      } catch {}
+                    }}
+                  >
+                    ×
+                  </button>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {(loading || blockingFirstPanel) && isFirstLoad ? (
