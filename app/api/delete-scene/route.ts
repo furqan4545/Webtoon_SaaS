@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       if (sceneRow?.image_path) pathsToRemove.push(sceneRow.image_path);
     } catch {}
 
-    // Delete DB rows
+    // Delete DB rows (images table will cascade from generated_scenes via FK)
     try {
       await supabase
         .from('generated_scenes')

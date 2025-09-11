@@ -17,6 +17,7 @@ interface SceneItem {
   imageDataUrl?: string;
   isGenerating?: boolean;
   generationPhase?: 'image' | 'sfx' | null;
+  sceneNo?: number;
 }
 
 export default function WebtoonBuilder() {
@@ -61,7 +62,11 @@ export default function WebtoonBuilder() {
       for (const [sceneNo, url] of signedList) {
         if (sceneNo) results[Number(sceneNo)] = url;
       }
-      setScenes(prev => prev.map((s, i) => ({ ...s, imageDataUrl: results[i + 1] || s.imageDataUrl })));
+      setScenes(prev => prev.map((s, i) => {
+        const parsed = Number(String(s.id || '').split('_')[1]);
+        const sceneNo = Number.isFinite(s.sceneNo) ? Number(s.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
+        return { ...s, imageDataUrl: results[sceneNo] || s.imageDataUrl };
+      }));
     } catch {}
   };
   const quickActions = [
@@ -284,7 +289,7 @@ export default function WebtoonBuilder() {
         } catch {}
 
         if (existingScenes.length > 0) {
-          const items: SceneItem[] = existingScenes.map((s: any) => ({ id: `scene_${s.scene_no}`, storyText: s.story_text || '', description: s.scene_description || '' }));
+          const items: SceneItem[] = existingScenes.map((s: any) => ({ id: `scene_${s.scene_no}`, storyText: s.story_text || '', description: s.scene_description || '', sceneNo: Number(s.scene_no) }));
           setScenes(items);
           setSelectedSceneIndex(0);
           try { localStorage.setItem(cacheKeyScenes, JSON.stringify(items)); } catch {}
@@ -314,6 +319,7 @@ export default function WebtoonBuilder() {
             id: key,
             storyText: scenesObj[key]?.Story_Text || '',
             description: scenesObj[key]?.Scene_Description || '',
+            sceneNo: idx + 1,
           }));
           setScenes(items);
           setSelectedSceneIndex(0);
