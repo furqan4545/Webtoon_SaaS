@@ -48,7 +48,7 @@ export default function WebtoonBuilder() {
   const deleteQueueProcessingRef = useRef<boolean>(false); // legacy; not used with new approach
   const [savingSceneNos, setSavingSceneNos] = useState<number[]>([]);
   const [saveSuppressedByScene, setSaveSuppressedByScene] = useState<Record<number, boolean>>({});
-  const [historyByScene, setHistoryByScene] = useState<Record<number, { undo: string[]; redo: string[] }>>({});
+  const [historyByScene, setHistoryByScene] = useState<Record<number, { images: string[]; index: number }>>({});
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -95,16 +95,28 @@ export default function WebtoonBuilder() {
   };
   const incDeletingCount = (pid: string) => setDeletingCount(pid, getDeletingCount(pid) + 1);
   const decDeletingCount = (pid: string) => setDeletingCount(pid, Math.max(0, getDeletingCount(pid) - 1));
-  const pushUndo = (sceneNo: number, img?: string) => {
-    if (!img) return;
-    setHistoryByScene((m) => {
-      const entry = m[sceneNo] || { undo: [], redo: [] };
-      if (entry.undo[entry.undo.length - 1] === img) return m;
-      return { ...m, [sceneNo]: { undo: [...entry.undo, img].slice(-3), redo: [] } };
+  const pushFinalImage = (sceneNo: number, image?: string) => {
+    if (!image) return;
+    setHistoryByScene((prev) => {
+      const entry = prev[sceneNo] || { images: [], index: -1 };
+      let images = entry.images;
+      let index = entry.index;
+      if (images.length === 0) {
+        images = [image];
+        index = 0;
+      } else {
+        if (index < images.length - 1) {
+          images = images.slice(0, index + 1);
+        }
+        if (images[images.length - 1] !== image) {
+          images = [...images, image];
+          index = images.length - 1;
+        }
+      }
+      if (images === entry.images && index === entry.index) return prev;
+      return { ...prev, [sceneNo]: { images, index } };
     });
   };
-  const canUndo = (sceneNo: number) => (historyByScene[sceneNo]?.undo?.length || 0) > 0;
-  const canRedo = (sceneNo: number) => (historyByScene[sceneNo]?.redo?.length || 0) > 0;
   const getSceneNoForIndex = (scene: any, index: number) => {
     const parsed = Number(String(scene?.id || '').split('_')[1]);
     return Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (index + 1));
@@ -156,11 +168,7 @@ export default function WebtoonBuilder() {
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
       const sceneNoForIndex = getSceneNoForIndex(scenes[index], index);
-      // Push current image to undo stack (in-memory) before generating a new one
-      try {
-        const currentImage = scenes[index]?.imageDataUrl;
-        pushUndo(sceneNoForIndex, currentImage);
-      } catch {}
+      // Do not store intermediate; only store final image in history stack
       const characterImages: Array<{ name: string; dataUrl: string }> = pickSafeRefsForPayload(refImages);
       const res = await fetch('/api/generate-scene-image', {
         method: 'POST',
@@ -177,10 +185,8 @@ export default function WebtoonBuilder() {
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to generate scene image');
 
-      // Update with the freshly generated image first
+      // Update with the freshly generated image first (intermediate)
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image } : s));
-      // Push the previous current image (already done above via pushUndo) and also record the new generated image for this panel
-      try { if (data?.image) pushUndo(sceneNoForIndex, data.image); } catch {}
 
       // Immediately chain sound-effects enhancement
       let secondSucceeded = false;
@@ -199,10 +205,10 @@ export default function WebtoonBuilder() {
         });
         const data2 = await res2.json();
         if (res2.ok && data2?.success && data2?.image) {
-          // First apply final SFX image, then push the pre-SFX image so undo goes back correctly
+          // Final image from SFX; only this should be recorded into history
           secondSucceeded = true;
           setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data2.image } : s));
-          try { if (data?.image) pushUndo(sceneNoForIndex, data.image); } catch {}
+          try { pushFinalImage(sceneNoForIndex, data2.image); } catch {}
         }
       } catch (err) {
         console.error('add-image-soundEffects failed', err);
@@ -529,7 +535,7 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
-      try { pushUndo(getSceneNoForIndex(scene, index), scene.imageDataUrl); } catch {}
+      // remove-bg returns final; after success store the result below
       const res = await fetch('/api/remove-background', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -538,6 +544,7 @@ export default function WebtoonBuilder() {
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to remove background');
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
+      try { pushFinalImage(getSceneNoForIndex(scene, index), data.image); } catch {}
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
       // Optimistically decrement and notify header
       setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
@@ -554,7 +561,7 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
-      try { pushUndo(getSceneNoForIndex(scene, index), scene.imageDataUrl); } catch {}
+      // edit returns final; after success store the result below
       const res = await fetch('/api/edit-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -563,6 +570,7 @@ export default function WebtoonBuilder() {
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to edit scene image');
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
+      try { pushFinalImage(getSceneNoForIndex(scene, index), data.image); } catch {}
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
       // Optimistically decrement and notify header
       setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
@@ -582,14 +590,14 @@ export default function WebtoonBuilder() {
     const scene = scenes[index];
     const sceneNo = getSceneNoForIndex(scene, index);
     const entry = historyByScene[sceneNo];
-    const current = scene?.imageDataUrl;
-    if (!entry || entry.undo.length === 0 || !current) return;
-    const prevImg = entry.undo[entry.undo.length - 1];
-    setHistoryByScene((m) => ({
-      ...m,
-      [sceneNo]: { undo: entry.undo.slice(0, -1), redo: [...entry.redo, current].slice(-3) },
-    }));
-    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: prevImg } : s));
+    if (!entry) return;
+    const { images, index: cur } = entry;
+    if (cur <= 0) return;
+    const newIndex = cur - 1;
+    const newImg = images[newIndex];
+    if (!newImg) return;
+    setHistoryByScene((m) => ({ ...m, [sceneNo]: { images, index: newIndex } }));
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImg } : s));
     setSaveSuppressedByScene((m) => ({ ...m, [sceneNo]: false }));
   };
 
@@ -597,14 +605,14 @@ export default function WebtoonBuilder() {
     const scene = scenes[index];
     const sceneNo = getSceneNoForIndex(scene, index);
     const entry = historyByScene[sceneNo];
-    const current = scene?.imageDataUrl;
-    if (!entry || entry.redo.length === 0 || !current) return;
-    const nextImg = entry.redo[entry.redo.length - 1];
-    setHistoryByScene((m) => ({
-      ...m,
-      [sceneNo]: { undo: [...entry.undo, current].slice(-3), redo: entry.redo.slice(0, -1) },
-    }));
-    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: nextImg } : s));
+    if (!entry) return;
+    const { images, index: cur } = entry;
+    if (cur >= images.length - 1) return;
+    const newIndex = cur + 1;
+    const newImg = images[newIndex];
+    if (!newImg) return;
+    setHistoryByScene((m) => ({ ...m, [sceneNo]: { images, index: newIndex } }));
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImg } : s));
   };
 
   const handleSaveCurrentImageToSupabase = async (index: number) => {
@@ -696,9 +704,9 @@ export default function WebtoonBuilder() {
                   <div className="flex items-center gap-2">
                     {(() => {
                       const sceneNo = (() => { const p = Number(String(scene?.id || '').split('_')[1]); return Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(p) ? p : (i + 1)); })();
-                      const entry = historyByScene[sceneNo] || { undo: [], redo: [] };
-                      const canU = entry.undo.length > 0;
-                      const canR = entry.redo.length > 0;
+                      const entry = historyByScene[sceneNo];
+                      const canU = !!entry && entry.index > 0;
+                      const canR = !!entry && entry.index < entry.images.length - 1;
                       const showSave = canU && !saveSuppressedByScene[sceneNo];
                       const isSaving = savingSceneNos.includes(sceneNo);
                       return (
