@@ -77,7 +77,14 @@ export default function WebtoonBuilder() {
     } catch {}
   };
 
-  const getProjectId = () => sessionStorage.getItem('currentProjectId') || '';
+  const getProjectId = () => {
+    try {
+      if (typeof window === 'undefined') return '';
+      return sessionStorage.getItem('currentProjectId') || '';
+    } catch {
+      return '';
+    }
+  };
   const getScenesCacheKey = (pid: string) => `scenes:${pid}`;
   const getDeletingFlagKey = (pid: string) => `deletingScenes:${pid}`;
   const getDeletingCountKey = (pid: string) => `deletingScenesCount:${pid}`;
@@ -92,6 +99,7 @@ export default function WebtoonBuilder() {
   const getPanelHistoryKey = (pid: string, sceneNo: number) => `panelHistory:${pid}:${sceneNo}`;
   const readPanelHistory = (pid: string, sceneNo: number): string[] => {
     try {
+      if (typeof window === 'undefined') return [];
       const raw = sessionStorage.getItem(getPanelHistoryKey(pid, sceneNo));
       const arr = raw ? (JSON.parse(raw) as string[]) : [];
       return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string' && !!x) : [];
@@ -101,6 +109,7 @@ export default function WebtoonBuilder() {
   };
   const writePanelHistory = (pid: string, sceneNo: number, images: string[]) => {
     try {
+      if (typeof window === 'undefined') return;
       const trimmed = images.filter(Boolean).slice(-3);
       sessionStorage.setItem(getPanelHistoryKey(pid, sceneNo), JSON.stringify(trimmed));
     } catch {}
@@ -114,6 +123,7 @@ export default function WebtoonBuilder() {
   };
   const clearAllPanelHistoriesForProject = (pid: string) => {
     try {
+      if (typeof window === 'undefined') return;
       const keys: string[] = [];
       for (let i = 0; i < sessionStorage.length; i++) {
         const k = sessionStorage.key(i);
@@ -173,7 +183,7 @@ export default function WebtoonBuilder() {
   const handleGenerateScene = async (index: number, overrideDescription?: string) => {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true, generationPhase: 'image' } : s));
     try {
-      const projectId = sessionStorage.getItem('currentProjectId');
+      const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
       // Push current image to panel history before generating a new one
       try {
         const currentImage = scenes[index]?.imageDataUrl;
@@ -285,10 +295,12 @@ export default function WebtoonBuilder() {
     const run = async () => {
       try {
         try {
-          const nav: any = (performance.getEntriesByType('navigation') as any)[0];
-          isReloadRef.current = nav?.type === 'reload';
+          if (typeof window !== 'undefined') {
+            const nav: any = (performance.getEntriesByType('navigation') as any)[0];
+            isReloadRef.current = nav?.type === 'reload';
+          }
         } catch {}
-        const projectId = sessionStorage.getItem('currentProjectId');
+        const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
         if (!projectId) {
           setError('No project selected.');
           setLoading(false);
@@ -297,7 +309,7 @@ export default function WebtoonBuilder() {
 
         // If there are pending deletes from a previous navigation/refresh, process them first and block UI
         // Clean up any legacy flags from previous logic
-        try { sessionStorage.removeItem(getDeletingFlagKey(projectId)); } catch {}
+        try { if (typeof window !== 'undefined') sessionStorage.removeItem(getDeletingFlagKey(projectId)); } catch {}
         // Reset per-panel undo/redo histories on reload
         if (isReloadRef.current) {
           clearAllPanelHistoriesForProject(projectId);
@@ -325,7 +337,7 @@ export default function WebtoonBuilder() {
         // Local cache first for instant reloads
         const cacheKeyScenes = `scenes:${projectId}`;
         const cachedScenes = (() => {
-          try { return JSON.parse(localStorage.getItem(cacheKeyScenes) || 'null') as SceneItem[] | null; } catch { return null; }
+          try { return typeof window === 'undefined' ? null : (JSON.parse(localStorage.getItem(cacheKeyScenes) || 'null') as SceneItem[] | null); } catch { return null; }
         })();
         if (cachedScenes && Array.isArray(cachedScenes) && cachedScenes.length > 0) {
           setScenes(cachedScenes);
@@ -437,13 +449,13 @@ export default function WebtoonBuilder() {
     if (isReloadRef.current) return;
     if (credits && credits.remaining <= 0) return;
     try {
-      const projectId = sessionStorage.getItem('currentProjectId');
+      const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
       if (!projectId) return;
       const flagKey = `autoGenFirst:${projectId}`;
-      if (sessionStorage.getItem(flagKey)) return;
+      if (typeof window !== 'undefined' && sessionStorage.getItem(flagKey)) return;
       if (!scenes[0]?.imageDataUrl) {
         autoTriggeredRef.current = true;
-        sessionStorage.setItem(flagKey, '1');
+        if (typeof window !== 'undefined') sessionStorage.setItem(flagKey, '1');
         setBlockingFirstPanel(true);
         (async () => {
           try {
@@ -534,7 +546,7 @@ export default function WebtoonBuilder() {
     // Update the selected scene's description and regenerate
     setScenes(prev => prev.map((s, i) => i === selectedSceneIndex ? { ...s, description: text } : s));
     try {
-      const projectId = sessionStorage.getItem('currentProjectId');
+      const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
       if (projectId) {
         await fetch('/api/generated-scenes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, scene_no: selectedSceneIndex + 1, scene_description: text }) });
       }
@@ -548,7 +560,7 @@ export default function WebtoonBuilder() {
     if (!scene?.imageDataUrl) return;
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
-      const projectId = sessionStorage.getItem('currentProjectId');
+      const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
       try {
         const sceneNo = getSceneNoForIndex(scene, index);
         pushPanelHistory(projectId || '', sceneNo, scene.imageDataUrl);
@@ -580,7 +592,7 @@ export default function WebtoonBuilder() {
     if (!scene?.imageDataUrl) return;
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
-      const projectId = sessionStorage.getItem('currentProjectId');
+      const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
       try {
         const sceneNo = getSceneNoForIndex(scene, index);
         pushPanelHistory(projectId || '', sceneNo, scene.imageDataUrl);
