@@ -47,9 +47,8 @@ export default function WebtoonBuilder() {
   const [deletingSceneNos, setDeletingSceneNos] = useState<number[]>([]);
   const deleteQueueProcessingRef = useRef<boolean>(false); // legacy; not used with new approach
   const [savingSceneNos, setSavingSceneNos] = useState<number[]>([]);
-  const [historyCursorByScene, setHistoryCursorByScene] = useState<Record<number, number>>({});
-  const [redoCurrentByScene, setRedoCurrentByScene] = useState<Record<number, string | undefined>>({});
   const [saveSuppressedByScene, setSaveSuppressedByScene] = useState<Record<number, boolean>>({});
+  const [historyByScene, setHistoryByScene] = useState<Record<number, { undo: string[]; redo: string[] }>>({});
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -96,49 +95,21 @@ export default function WebtoonBuilder() {
   };
   const incDeletingCount = (pid: string) => setDeletingCount(pid, getDeletingCount(pid) + 1);
   const decDeletingCount = (pid: string) => setDeletingCount(pid, Math.max(0, getDeletingCount(pid) - 1));
-  const getPanelHistoryKey = (pid: string, sceneNo: number) => `panelHistory:${pid}:${sceneNo}`;
-  const readPanelHistory = (pid: string, sceneNo: number): string[] => {
-    try {
-      if (typeof window === 'undefined') return [];
-      const raw = sessionStorage.getItem(getPanelHistoryKey(pid, sceneNo));
-      const arr = raw ? (JSON.parse(raw) as string[]) : [];
-      return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string' && !!x) : [];
-    } catch {
-      return [];
-    }
+  const pushUndo = (sceneNo: number, img?: string) => {
+    if (!img) return;
+    setHistoryByScene((m) => {
+      const entry = m[sceneNo] || { undo: [], redo: [] };
+      if (entry.undo[entry.undo.length - 1] === img) return m;
+      return { ...m, [sceneNo]: { undo: [...entry.undo, img].slice(-3), redo: [] } };
+    });
   };
-  const writePanelHistory = (pid: string, sceneNo: number, images: string[]) => {
-    try {
-      if (typeof window === 'undefined') return;
-      const trimmed = images.filter(Boolean).slice(-3);
-      sessionStorage.setItem(getPanelHistoryKey(pid, sceneNo), JSON.stringify(trimmed));
-    } catch {}
-  };
-  const pushPanelHistory = (pid: string, sceneNo: number, image: string | undefined | null) => {
-    if (!image) return;
-    const arr = readPanelHistory(pid, sceneNo);
-    if (arr[arr.length - 1] === image) return;
-    arr.push(image);
-    writePanelHistory(pid, sceneNo, arr);
-  };
-  const clearAllPanelHistoriesForProject = (pid: string) => {
-    try {
-      if (typeof window === 'undefined') return;
-      const keys: string[] = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const k = sessionStorage.key(i);
-        if (k && k.startsWith(`panelHistory:${pid}:`)) keys.push(k);
-      }
-      for (const k of keys) sessionStorage.removeItem(k);
-    } catch {}
-  };
+  const canUndo = (sceneNo: number) => (historyByScene[sceneNo]?.undo?.length || 0) > 0;
+  const canRedo = (sceneNo: number) => (historyByScene[sceneNo]?.redo?.length || 0) > 0;
   const getSceneNoForIndex = (scene: any, index: number) => {
     const parsed = Number(String(scene?.id || '').split('_')[1]);
     return Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (index + 1));
   };
-  const getCursor = (sceneNo: number) => (historyCursorByScene[sceneNo] ?? 0);
-  const setCursor = (sceneNo: number, value: number) => setHistoryCursorByScene((m) => ({ ...m, [sceneNo]: value }));
-  const setRedoCurrent = (sceneNo: number, img?: string) => setRedoCurrentByScene((m) => ({ ...m, [sceneNo]: img }));
+  // In-memory undo/redo stacks are maintained in historyByScene
   const refreshScenesFromDb = async (pid: string) => {
     const r = await fetch(`/api/generated-scenes?projectId=${encodeURIComponent(pid)}`, { cache: 'no-store' });
     const j = await r.json();
@@ -185,14 +156,10 @@ export default function WebtoonBuilder() {
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
       const sceneNoForIndex = getSceneNoForIndex(scenes[index], index);
-      // Push current image to panel history before generating a new one
+      // Push current image to undo stack (in-memory) before generating a new one
       try {
         const currentImage = scenes[index]?.imageDataUrl;
-        if (projectId && currentImage) {
-          pushPanelHistory(projectId, sceneNoForIndex, currentImage);
-          setCursor(sceneNoForIndex, 0);
-          setRedoCurrent(sceneNoForIndex, undefined);
-        }
+        pushUndo(sceneNoForIndex, currentImage);
       } catch {}
       const characterImages: Array<{ name: string; dataUrl: string }> = pickSafeRefsForPayload(refImages);
       const res = await fetch('/api/generate-scene-image', {
@@ -230,12 +197,8 @@ export default function WebtoonBuilder() {
         });
         const data2 = await res2.json();
         if (res2.ok && data2?.success && data2?.image) {
-          // Push the intermediate generated image before applying SFX result to enable second undo step
-          try {
-            if (projectId && data?.image) {
-              pushPanelHistory(projectId, sceneNoForIndex, data.image);
-            }
-          } catch {}
+          // Push intermediate generated image before applying SFX to enable second undo step
+          try { pushUndo(sceneNoForIndex, data.image); } catch {}
           secondSucceeded = true;
           setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data2.image } : s));
         }
@@ -316,10 +279,7 @@ export default function WebtoonBuilder() {
         // If there are pending deletes from a previous navigation/refresh, process them first and block UI
         // Clean up any legacy flags from previous logic
         try { if (typeof window !== 'undefined') sessionStorage.removeItem(getDeletingFlagKey(projectId)); } catch {}
-        // Reset per-panel undo/redo histories on reload
-        if (isReloadRef.current) {
-          clearAllPanelHistoriesForProject(projectId);
-        }
+        // In-memory history resets naturally on reload
 
         // Load art style (optional)
         try {
@@ -567,14 +527,7 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
-      try {
-        const sceneNo = getSceneNoForIndex(scene, index);
-        if (projectId) {
-          pushPanelHistory(projectId, sceneNo, scene.imageDataUrl);
-          setCursor(sceneNo, 0);
-          setRedoCurrent(sceneNo, undefined);
-        }
-      } catch {}
+      try { pushUndo(getSceneNoForIndex(scene, index), scene.imageDataUrl); } catch {}
       const res = await fetch('/api/remove-background', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -599,14 +552,7 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
-      try {
-        const sceneNo = getSceneNoForIndex(scene, index);
-        if (projectId) {
-          pushPanelHistory(projectId, sceneNo, scene.imageDataUrl);
-          setCursor(sceneNo, 0);
-          setRedoCurrent(sceneNo, undefined);
-        }
-      } catch {}
+      try { pushUndo(getSceneNoForIndex(scene, index), scene.imageDataUrl); } catch {}
       const res = await fetch('/api/edit-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -631,44 +577,32 @@ export default function WebtoonBuilder() {
   };
 
   const handleUndo = (index: number) => {
-    const projectId = sessionStorage.getItem('currentProjectId') || '';
     const scene = scenes[index];
     const sceneNo = getSceneNoForIndex(scene, index);
-    const hist = readPanelHistory(projectId, sceneNo);
-    const cursor = getCursor(sceneNo);
-    const maxSteps = Math.min(2, hist.length);
-    if (cursor >= maxSteps) return;
-    const newCursor = cursor + 1;
-    if (cursor === 0) {
-      setRedoCurrent(sceneNo, scene?.imageDataUrl);
-    }
-    const newImage = hist[hist.length - newCursor];
-    if (!newImage) return;
-    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImage } : s));
-    setCursor(sceneNo, newCursor);
-    // Undo clears save suppression, making Save visible again
+    const entry = historyByScene[sceneNo];
+    const current = scene?.imageDataUrl;
+    if (!entry || entry.undo.length === 0 || !current) return;
+    const prevImg = entry.undo[entry.undo.length - 1];
+    setHistoryByScene((m) => ({
+      ...m,
+      [sceneNo]: { undo: entry.undo.slice(0, -1), redo: [...entry.redo, current].slice(-3) },
+    }));
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: prevImg } : s));
     setSaveSuppressedByScene((m) => ({ ...m, [sceneNo]: false }));
   };
 
   const handleRedo = (index: number) => {
-    const projectId = sessionStorage.getItem('currentProjectId') || '';
     const scene = scenes[index];
     const sceneNo = getSceneNoForIndex(scene, index);
-    const hist = readPanelHistory(projectId, sceneNo);
-    const cursor = getCursor(sceneNo);
-    if (cursor <= 0) return;
-    const newCursor = cursor - 1;
-    let newImage: string | undefined;
-    if (newCursor === 0) {
-      newImage = redoCurrentByScene[sceneNo];
-      setRedoCurrent(sceneNo, undefined);
-    } else {
-      newImage = hist[hist.length - newCursor];
-    }
-    if (!newImage) return;
-    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImage } : s));
-    setCursor(sceneNo, newCursor);
-    // Redo doesn't change suppression; it follows cursor logic
+    const entry = historyByScene[sceneNo];
+    const current = scene?.imageDataUrl;
+    if (!entry || entry.redo.length === 0 || !current) return;
+    const nextImg = entry.redo[entry.redo.length - 1];
+    setHistoryByScene((m) => ({
+      ...m,
+      [sceneNo]: { undo: [...entry.undo, current].slice(-3), redo: entry.redo.slice(0, -1) },
+    }));
+    setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: nextImg } : s));
   };
 
   const handleSaveCurrentImageToSupabase = async (index: number) => {
@@ -759,14 +693,11 @@ export default function WebtoonBuilder() {
                   <CardTitle className="text-white">Scene {i + 1}</CardTitle>
                   <div className="flex items-center gap-2">
                     {(() => {
-                      const projectId = getProjectId();
                       const sceneNo = (() => { const p = Number(String(scene?.id || '').split('_')[1]); return Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(p) ? p : (i + 1)); })();
-                      const hist = readPanelHistory(projectId, sceneNo);
-                      const cursor = historyCursorByScene[sceneNo] ?? 0;
-                      const maxSteps = Math.min(2, hist.length);
-                      const showUndo = maxSteps > 0;
-                      const showRedo = cursor > 0;
-                      const showSave = cursor > 0 && !saveSuppressedByScene[sceneNo];
+                      const entry = historyByScene[sceneNo] || { undo: [], redo: [] };
+                      const canU = entry.undo.length > 0;
+                      const canR = entry.redo.length > 0;
+                      const showSave = canU && !saveSuppressedByScene[sceneNo];
                       const isSaving = savingSceneNos.includes(sceneNo);
                       return (
                         <>
@@ -784,7 +715,7 @@ export default function WebtoonBuilder() {
                               )}
                             </button>
                           )}
-                          {showUndo && (
+                          {canU && (
                             <button
                               aria-label="Undo"
                               className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-0.5 text-sm"
@@ -793,7 +724,7 @@ export default function WebtoonBuilder() {
                               <Undo2 className="h-4 w-4" />
                             </button>
                           )}
-                          {showRedo && (
+                          {canR && (
                             <button
                               aria-label="Redo"
                               className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-0.5 text-sm"
