@@ -49,7 +49,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Monthly image limit reached' }, { status: 429 });
     }
     const model = 'gemini-2.5-flash-image-preview';
-    const config = { responseModalities: ['IMAGE', 'TEXT'] } as any;
+    // Align with working edit API but force image output to avoid text-only replies
+    const config = { responseModalities: ['IMAGE'], responseMimeType: 'image/png' } as any;
 
     const refsList = Array.isArray(characterImages)
       ? characterImages.filter((c: any) => !!c?.dataUrl)
@@ -101,7 +102,8 @@ export async function POST(request: NextRequest) {
         console.log(`[scene-image] generate attempt ${attempt}/${maxAttempts}`);
         const response = await ai.models.generateContent({ model, config, contents });
         const r: any = response as any;
-        const imgPart = r?.candidates?.[0]?.content?.parts?.find((p: any) => p?.inlineData?.data);
+        const parts: any[] = r?.candidates?.[0]?.content?.parts || [];
+        const imgPart = parts.find((p: any) => p?.inlineData?.data || p?.inlineData) || null;
         const base64: string | undefined = imgPart?.inlineData?.data;
         const mimeType: string = imgPart?.inlineData?.mimeType || 'image/png';
         if (!base64) {
