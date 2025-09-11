@@ -13,17 +13,20 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Collect storage paths to remove
+    // Collect storage paths to remove and delete generated_scene_images row explicitly (unique on project_id, scene_no)
     const pathsToRemove: string[] = [];
     try {
       const { data: imgRow } = await supabase
         .from('generated_scene_images')
-        .select('image_path')
+        .select('id,image_path')
         .eq('project_id', projectId)
         .eq('user_id', user.id)
         .eq('scene_no', sceneNo)
         .single();
       if (imgRow?.image_path) pathsToRemove.push(imgRow.image_path);
+      if (imgRow?.id) {
+        await supabase.from('generated_scene_images').delete().eq('id', imgRow.id);
+      }
     } catch {}
     try {
       const { data: sceneRow } = await supabase

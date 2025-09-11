@@ -577,11 +577,23 @@ export default function WebtoonBuilder() {
                       e.stopPropagation();
                       const projectId = sessionStorage.getItem('currentProjectId');
                       if (!projectId) return;
-                      const sceneNo = i + 1;
+                      const parsed = Number(String(scene?.id || '').split('_')[1]);
+                      const sceneNo = Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
                       // Optimistic local remove
                       setScenes(prev => prev.filter((_, idx) => idx !== i));
                       try {
-                        await fetch('/api/delete-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, sceneNo }) });
+                        const res = await fetch('/api/delete-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, sceneNo }) });
+                        if (!res.ok) throw new Error('delete failed');
+                        // Reload scenes from DB to reflect authoritative state
+                        try {
+                          const r = await fetch(`/api/generated-scenes?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' });
+                          const j = await r.json();
+                          const existingScenes = Array.isArray(j.scenes) ? j.scenes : [];
+                          const items: SceneItem[] = existingScenes.map((s: any) => ({ id: `scene_${s.scene_no}`, storyText: s.story_text || '', description: s.scene_description || '', sceneNo: Number(s.scene_no) }));
+                          setScenes(items);
+                          try { localStorage.setItem(`scenes:${projectId}`, JSON.stringify(items)); } catch {}
+                          await applyGeneratedSceneImages(projectId);
+                        } catch {}
                       } catch {}
                     }}
                   >
