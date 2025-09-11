@@ -43,7 +43,7 @@ export default function WebtoonBuilder() {
   const [isFirstLoad, setIsFirstLoad] = useState<boolean>(true);
   const [credits, setCredits] = useState<{ remaining: number; resetsAt?: string } | null>(null);
   const [blockingFirstPanel, setBlockingFirstPanel] = useState<boolean>(false);
-  const deleteQueueProcessingRef = useRef<boolean>(false);
+  const deleteQueueProcessingRef = useRef<boolean>(false); // legacy; not used with new approach
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -73,51 +73,23 @@ export default function WebtoonBuilder() {
 
   const getProjectId = () => sessionStorage.getItem('currentProjectId') || '';
   const getScenesCacheKey = (pid: string) => `scenes:${pid}`;
-  const getDeleteQueueKey = (pid: string) => `pendingSceneDeletes:${pid}`;
   const getDeletingFlagKey = (pid: string) => `deletingScenes:${pid}`;
-  const readDeleteQueue = (pid: string): number[] => {
-    try { return JSON.parse(sessionStorage.getItem(getDeleteQueueKey(pid)) || '[]') as number[]; } catch { return []; }
+  const getDeletingCountKey = (pid: string) => `deletingScenesCount:${pid}`;
+  const getDeletingCount = (pid: string): number => {
+    try { return Number(sessionStorage.getItem(getDeletingCountKey(pid)) || '0'); } catch { return 0; }
   };
-  const writeDeleteQueue = (pid: string, arr: number[]) => {
-    try { sessionStorage.setItem(getDeleteQueueKey(pid), JSON.stringify(arr)); } catch {}
+  const setDeletingCount = (pid: string, n: number) => {
+    try { sessionStorage.setItem(getDeletingCountKey(pid), String(Math.max(0, Math.floor(n)))); } catch {}
   };
-  const enqueueDelete = (pid: string, sceneNo: number) => {
-    const q = readDeleteQueue(pid);
-    if (!q.includes(sceneNo)) q.push(sceneNo);
-    writeDeleteQueue(pid, q);
-  };
-  const processDeleteQueue = async (pid: string) => {
-    if (deleteQueueProcessingRef.current) return;
-    const q = readDeleteQueue(pid);
-    if (!q.length) return;
-    deleteQueueProcessingRef.current = true;
-    setBlockingFirstPanel(true);
-    try { sessionStorage.setItem(getDeletingFlagKey(pid), '1'); } catch {}
-    try {
-      while (true) {
-        const queue = readDeleteQueue(pid);
-        const next = queue[0];
-        if (typeof next !== 'number') break;
-        try {
-          await fetch('/api/delete-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: pid, sceneNo: next }) });
-        } catch {}
-        // pop head
-        queue.shift();
-        writeDeleteQueue(pid, queue);
-      }
-      // Refresh cache from DB once after processing
-      try {
-        const r = await fetch(`/api/generated-scenes?projectId=${encodeURIComponent(pid)}`, { cache: 'no-store' });
-        const j = await r.json();
-        const existingScenes = Array.isArray(j.scenes) ? j.scenes : [];
-        const items: SceneItem[] = existingScenes.map((s: any) => ({ id: `scene_${s.scene_no}`, storyText: s.story_text || '', description: s.scene_description || '', sceneNo: Number(s.scene_no) }));
-        try { localStorage.setItem(getScenesCacheKey(pid), JSON.stringify(items)); } catch {}
-      } catch {}
-    } finally {
-      setBlockingFirstPanel(false);
-      deleteQueueProcessingRef.current = false;
-      try { sessionStorage.removeItem(getDeletingFlagKey(pid)); } catch {}
-    }
+  const incDeletingCount = (pid: string) => setDeletingCount(pid, getDeletingCount(pid) + 1);
+  const decDeletingCount = (pid: string) => setDeletingCount(pid, Math.max(0, getDeletingCount(pid) - 1));
+  const refreshScenesFromDb = async (pid: string) => {
+    const r = await fetch(`/api/generated-scenes?projectId=${encodeURIComponent(pid)}`, { cache: 'no-store' });
+    const j = await r.json();
+    const existingScenes = Array.isArray(j.scenes) ? j.scenes : [];
+    const items: SceneItem[] = existingScenes.map((s: any) => ({ id: `scene_${s.scene_no}`, storyText: s.story_text || '', description: s.scene_description || '', sceneNo: Number(s.scene_no) }));
+    try { localStorage.setItem(getScenesCacheKey(pid), JSON.stringify(items)); } catch {}
+    return items;
   };
   const quickActions = [
     "More dramatic",
@@ -268,10 +240,16 @@ export default function WebtoonBuilder() {
         }
 
         // If there are pending deletes from a previous navigation/refresh, process them first and block UI
-        const pendingDeletes = readDeleteQueue(projectId);
+        const deletingCount = getDeletingCount(projectId);
         const isDeletingFlag = sessionStorage.getItem(getDeletingFlagKey(projectId));
-        if (pendingDeletes.length > 0 || isDeletingFlag) {
-          await processDeleteQueue(projectId);
+        if (deletingCount > 0 || isDeletingFlag) {
+          setBlockingFirstPanel(true);
+          try {
+            const items = await refreshScenesFromDb(projectId);
+            setScenes(items);
+          } catch {}
+          setBlockingFirstPanel(false);
+          try { sessionStorage.removeItem(getDeletingFlagKey(projectId)); setDeletingCount(projectId, 0); } catch {}
         }
 
         // Load art style (optional)
@@ -637,11 +615,34 @@ export default function WebtoonBuilder() {
                       const parsed = Number(String(scene?.id || '').split('_')[1]);
                       const sceneNo = Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
                       // Queue delete and process in background; block with loader across refreshes
-                      enqueueDelete(projectId, sceneNo);
-                      try { localStorage.removeItem(getScenesCacheKey(projectId)); sessionStorage.setItem(getDeletingFlagKey(projectId), '1'); } catch {}
-                      // Optimistic local update only; do not force refetch here
-                      setScenes(prev => prev.filter((_, idx) => idx !== i));
-                      processDeleteQueue(projectId);
+                      // Optimistic local update and cache update
+                      try {
+                        const pid = projectId;
+                        const key = getScenesCacheKey(pid);
+                        const nextScenes = scenes.filter((_, idx) => idx !== i);
+                        setScenes(nextScenes);
+                        localStorage.setItem(key, JSON.stringify(nextScenes));
+                        sessionStorage.setItem(getDeletingFlagKey(pid), '1');
+                        incDeletingCount(pid);
+                      } catch {}
+                      // Fire-and-forget API; on completion, refresh cache if all deletes done
+                      (async () => {
+                        try { await fetch('/api/delete-scene', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, sceneNo }) }); }
+                        catch {}
+                        finally {
+                          const pid = projectId;
+                          decDeletingCount(pid);
+                          const remain = getDeletingCount(pid);
+                          if (remain === 0) {
+                            try {
+                              const items = await refreshScenesFromDb(pid);
+                              // Do not force UI rerender here unless user stayed; cache updated for next load
+                              localStorage.setItem(getScenesCacheKey(pid), JSON.stringify(items));
+                              sessionStorage.removeItem(getDeletingFlagKey(pid));
+                            } catch {}
+                          }
+                        }
+                      })();
                     }}
                   >
                     ×
