@@ -74,6 +74,7 @@ export default function WebtoonBuilder() {
   const getProjectId = () => sessionStorage.getItem('currentProjectId') || '';
   const getScenesCacheKey = (pid: string) => `scenes:${pid}`;
   const getDeleteQueueKey = (pid: string) => `pendingSceneDeletes:${pid}`;
+  const getDeletingFlagKey = (pid: string) => `deletingScenes:${pid}`;
   const readDeleteQueue = (pid: string): number[] => {
     try { return JSON.parse(sessionStorage.getItem(getDeleteQueueKey(pid)) || '[]') as number[]; } catch { return []; }
   };
@@ -91,6 +92,7 @@ export default function WebtoonBuilder() {
     if (!q.length) return;
     deleteQueueProcessingRef.current = true;
     setBlockingFirstPanel(true);
+    try { sessionStorage.setItem(getDeletingFlagKey(pid), '1'); } catch {}
     try {
       while (true) {
         const queue = readDeleteQueue(pid);
@@ -114,6 +116,7 @@ export default function WebtoonBuilder() {
     } finally {
       setBlockingFirstPanel(false);
       deleteQueueProcessingRef.current = false;
+      try { sessionStorage.removeItem(getDeletingFlagKey(pid)); } catch {}
     }
   };
   const quickActions = [
@@ -266,7 +269,8 @@ export default function WebtoonBuilder() {
 
         // If there are pending deletes from a previous navigation/refresh, process them first and block UI
         const pendingDeletes = readDeleteQueue(projectId);
-        if (pendingDeletes.length > 0) {
+        const isDeletingFlag = sessionStorage.getItem(getDeletingFlagKey(projectId));
+        if (pendingDeletes.length > 0 || isDeletingFlag) {
           await processDeleteQueue(projectId);
         }
 
@@ -634,6 +638,7 @@ export default function WebtoonBuilder() {
                       const sceneNo = Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
                       // Queue delete and process in background; block with loader across refreshes
                       enqueueDelete(projectId, sceneNo);
+                      try { localStorage.removeItem(getScenesCacheKey(projectId)); sessionStorage.setItem(getDeletingFlagKey(projectId), '1'); } catch {}
                       // Optimistic local update only; do not force refetch here
                       setScenes(prev => prev.filter((_, idx) => idx !== i));
                       processDeleteQueue(projectId);
