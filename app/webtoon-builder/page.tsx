@@ -95,15 +95,20 @@ export default function WebtoonBuilder() {
   };
   const incDeletingCount = (pid: string) => setDeletingCount(pid, getDeletingCount(pid) + 1);
   const decDeletingCount = (pid: string) => setDeletingCount(pid, Math.max(0, getDeletingCount(pid) - 1));
-  const pushFinalImage = (sceneNo: number, image?: string) => {
+  const pushFinalImage = (sceneNo: number, image?: string, previous?: string) => {
     if (!image) return;
     setHistoryByScene((prev) => {
       const entry = prev[sceneNo] || { images: [], index: -1 };
       let images = entry.images;
       let index = entry.index;
       if (images.length === 0) {
-        images = [image];
-        index = 0;
+        if (previous && previous !== image) {
+          images = [previous, image];
+          index = 1;
+        } else {
+          images = [image];
+          index = 0;
+        }
       } else {
         if (index < images.length - 1) {
           images = images.slice(0, index + 1);
@@ -207,8 +212,9 @@ export default function WebtoonBuilder() {
         if (res2.ok && data2?.success && data2?.image) {
           // Final image from SFX; only this should be recorded into history
           secondSucceeded = true;
+          const prevImage = scenes[index]?.imageDataUrl;
           setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data2.image } : s));
-          try { pushFinalImage(sceneNoForIndex, data2.image); } catch {}
+          try { pushFinalImage(sceneNoForIndex, data2.image, prevImage); } catch {}
         }
       } catch (err) {
         console.error('add-image-soundEffects failed', err);
@@ -543,8 +549,9 @@ export default function WebtoonBuilder() {
       });
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to remove background');
+      const prevImage = scenes[index]?.imageDataUrl;
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
-      try { pushFinalImage(getSceneNoForIndex(scene, index), data.image); } catch {}
+      try { pushFinalImage(getSceneNoForIndex(scene, index), data.image, prevImage); } catch {}
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
       // Optimistically decrement and notify header
       setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
@@ -569,8 +576,9 @@ export default function WebtoonBuilder() {
       });
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to edit scene image');
+      const prevImage = scenes[index]?.imageDataUrl;
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
-      try { pushFinalImage(getSceneNoForIndex(scene, index), data.image); } catch {}
+      try { pushFinalImage(getSceneNoForIndex(scene, index), data.image, prevImage); } catch {}
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
       // Optimistically decrement and notify header
       setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
