@@ -184,14 +184,14 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true, generationPhase: 'image' } : s));
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
+      const sceneNoForIndex = getSceneNoForIndex(scenes[index], index);
       // Push current image to panel history before generating a new one
       try {
         const currentImage = scenes[index]?.imageDataUrl;
-        const sceneNo = getSceneNoForIndex(scenes[index], index);
         if (projectId && currentImage) {
-          pushPanelHistory(projectId, sceneNo, currentImage);
-          setCursor(sceneNo, 0);
-          setRedoCurrent(sceneNo, undefined);
+          pushPanelHistory(projectId, sceneNoForIndex, currentImage);
+          setCursor(sceneNoForIndex, 0);
+          setRedoCurrent(sceneNoForIndex, undefined);
         }
       } catch {}
       const characterImages: Array<{ name: string; dataUrl: string }> = pickSafeRefsForPayload(refImages);
@@ -230,6 +230,12 @@ export default function WebtoonBuilder() {
         });
         const data2 = await res2.json();
         if (res2.ok && data2?.success && data2?.image) {
+          // Push the intermediate generated image before applying SFX result to enable second undo step
+          try {
+            if (projectId && data?.image) {
+              pushPanelHistory(projectId, sceneNoForIndex, data.image);
+            }
+          } catch {}
           secondSucceeded = true;
           setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data2.image } : s));
         }
@@ -563,8 +569,8 @@ export default function WebtoonBuilder() {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
       try {
         const sceneNo = getSceneNoForIndex(scene, index);
-        pushPanelHistory(projectId || '', sceneNo, scene.imageDataUrl);
         if (projectId) {
+          pushPanelHistory(projectId, sceneNo, scene.imageDataUrl);
           setCursor(sceneNo, 0);
           setRedoCurrent(sceneNo, undefined);
         }
@@ -595,8 +601,8 @@ export default function WebtoonBuilder() {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
       try {
         const sceneNo = getSceneNoForIndex(scene, index);
-        pushPanelHistory(projectId || '', sceneNo, scene.imageDataUrl);
         if (projectId) {
+          pushPanelHistory(projectId, sceneNo, scene.imageDataUrl);
           setCursor(sceneNo, 0);
           setRedoCurrent(sceneNo, undefined);
         }
