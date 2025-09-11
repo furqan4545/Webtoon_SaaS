@@ -179,6 +179,8 @@ export default function WebtoonBuilder() {
 
       // Update with the freshly generated image first
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image } : s));
+      // Push the previous current image (already done above via pushUndo) and also record the new generated image for this panel
+      try { if (data?.image) pushUndo(sceneNoForIndex, data.image); } catch {}
 
       // Immediately chain sound-effects enhancement
       let secondSucceeded = false;
@@ -197,10 +199,10 @@ export default function WebtoonBuilder() {
         });
         const data2 = await res2.json();
         if (res2.ok && data2?.success && data2?.image) {
-          // Push intermediate generated image before applying SFX to enable second undo step
-          try { pushUndo(sceneNoForIndex, data.image); } catch {}
+          // First apply final SFX image, then push the pre-SFX image so undo goes back correctly
           secondSucceeded = true;
           setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data2.image } : s));
+          try { if (data?.image) pushUndo(sceneNoForIndex, data.image); } catch {}
         }
       } catch (err) {
         console.error('add-image-soundEffects failed', err);
