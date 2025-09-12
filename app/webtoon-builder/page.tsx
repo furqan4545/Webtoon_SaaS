@@ -46,9 +46,10 @@ export default function WebtoonBuilder() {
   const [blockingFirstPanel, setBlockingFirstPanel] = useState<boolean>(false);
   const [deletingSceneNos, setDeletingSceneNos] = useState<number[]>([]);
   const deleteQueueProcessingRef = useRef<boolean>(false); // legacy; not used with new approach
-  const [savingSceneNos, setSavingSceneNos] = useState<number[]>([]);
-  const [saveSuppressedByScene, setSaveSuppressedByScene] = useState<Record<number, boolean>>({});
-  const [historyByScene, setHistoryByScene] = useState<Record<number, { images: string[]; index: number }>>({});
+  const [savingSceneNos, setSavingSceneNos] = useState<string[]>([]);
+  const [saveSuppressedByScene, setSaveSuppressedByScene] = useState<Record<string, boolean>>({});
+  const [historyByScene, setHistoryByScene] = useState<Record<string, { images: string[]; index: number }>>({});
+
 
   const applyGeneratedSceneImages = async (projectId: string) => {
     try {
@@ -95,13 +96,16 @@ export default function WebtoonBuilder() {
   };
   const incDeletingCount = (pid: string) => setDeletingCount(pid, getDeletingCount(pid) + 1);
   const decDeletingCount = (pid: string) => setDeletingCount(pid, Math.max(0, getDeletingCount(pid) - 1));
-  const pushFinalImage = (sceneNo: number, image?: string, previous?: string) => {
+  
+  const pushFinalImage = (panelKey: string, image?: string, previous?: string) => {
     if (!image) return;
     setHistoryByScene((prev) => {
-      const entry = prev[sceneNo] || { images: [], index: -1 };
-      let images = entry.images;
+      const entry = prev[panelKey] || { images: [], index: -1 };
+      let images = entry.images.slice();
       let index = entry.index;
+  
       if (images.length === 0) {
+        // First time: optionally seed with previous, then push new
         if (previous && previous !== image) {
           images = [previous, image];
           index = 1;
@@ -110,21 +114,56 @@ export default function WebtoonBuilder() {
           index = 0;
         }
       } else {
-        if (index < images.length - 1) {
-          images = images.slice(0, index + 1);
-        }
+        // If the user had undone some steps, truncate forward history
+        if (index < images.length - 1) images = images.slice(0, index + 1);
+        // Push new only if different to avoid duplicates
         if (images[images.length - 1] !== image) {
-          images = [...images, image];
+          images.push(image);
+          index = images.length - 1;
+        } else {
           index = images.length - 1;
         }
       }
+  
       if (images === entry.images && index === entry.index) return prev;
-      return { ...prev, [sceneNo]: { images, index } };
+      return { ...prev, [panelKey]: { images, index } };
     });
+  
+    // New image exists → allow Save until explicitly saved or undone
+    setSaveSuppressedByScene((m) => ({ ...m, [panelKey]: false }));
   };
+
   const getSceneNoForIndex = (scene: any, index: number) => {
     const parsed = Number(String(scene?.id || '').split('_')[1]);
     return Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (index + 1));
+  };
+
+  // Stable panel key (prefer explicit .id like "scene_5"; fallback to index-based id)
+  const getPanelKey = (scene: any, index: number): string => {
+    const id = (scene && typeof scene.id === 'string' && scene.id.trim()) ? scene.id : `scene_${index + 1}`;
+    return String(id);
+  };
+
+  // Initialize empty stacks once we know how many scenes exist
+  const initializeHistoryForScenes = (items: SceneItem[]) => {
+    const map: Record<string, { images: string[]; index: number }> = {};
+    items.forEach((s, idx) => { map[getPanelKey(s, idx)] = { images: [], index: -1 }; });
+    setHistoryByScene(map);
+    setSaveSuppressedByScene({});  // reset save suppression on fresh load
+    setSavingSceneNos([]);         // clear any saving flags
+  };
+
+  // Remove stack for a particular panel (used when deleting a panel)
+  const removeHistoryForPanel = (panelKey: string) => {
+    setHistoryByScene(prev => {
+      const { [panelKey]: _, ...rest } = prev;
+      return rest;
+    });
+    setSaveSuppressedByScene(prev => {
+      const { [panelKey]: _, ...rest } = prev;
+      return rest;
+    });
+    setSavingSceneNos(prev => prev.filter(k => k !== panelKey));
   };
   // In-memory undo/redo stacks are maintained in historyByScene
   const refreshScenesFromDb = async (pid: string) => {
@@ -169,12 +208,18 @@ export default function WebtoonBuilder() {
   };
 
   const handleGenerateScene = async (index: number, overrideDescription?: string) => {
+    // Mark UI generating phase
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true, generationPhase: 'image' } : s));
+  
+    // Capture “before” image ONCE (the currently visible image BEFORE generating)
+    const beforeImage = scenes[index]?.imageDataUrl;
+    const panelKey = getPanelKey(scenes[index], index);
+  
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
-      const sceneNoForIndex = getSceneNoForIndex(scenes[index], index);
-      // Do not store intermediate; only store final image in history stack
       const characterImages: Array<{ name: string; dataUrl: string }> = pickSafeRefsForPayload(refImages);
+  
+      // 1) Base image
       const res = await fetch('/api/generate-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -189,45 +234,46 @@ export default function WebtoonBuilder() {
       });
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to generate scene image');
-
-      // Update with the freshly generated image first (intermediate)
+  
+      // Show the base image immediately (intermediate display only)
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image } : s));
-
-      // Immediately chain sound-effects enhancement
-      let secondSucceeded = false;
+  
+      // 2) SFX pass (try once)
+      let finalImage = data.image;
+      let usedCalls = 1;
       try {
-        // Switch phase to SFX while the second call runs
         setScenes(prev => prev.map((s, i) => i === index ? { ...s, generationPhase: 'sfx' } : s));
         const res2 = await fetch('/api/add-image-soundEffects', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             imageDataUrl: data.image,
-            instruction: 'add webtoon style sound effects based on the whats going on in the scene. Only use English sound effects. No other languages. Make sure to add not more than 1 sound effect, if the scene is not silent. If the scene is silent, do not add any sound effects.',
+            instruction: 'add webtoon style sound effects based on the whats going on in the scene. Only use English sound effects. Make sure to add not more than 1 sound effect, if the scene is not silent. If the scene is silent, do not add any sound effects.',
             projectId: projectId || undefined,
             sceneNo: index + 1,
           })
         });
         const data2 = await res2.json();
         if (res2.ok && data2?.success && data2?.image) {
-          // Final image from SFX; only this should be recorded into history
-          secondSucceeded = true;
-          const prevImage = scenes[index]?.imageDataUrl;
-          setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data2.image } : s));
-          try { pushFinalImage(sceneNoForIndex, data2.image, prevImage); } catch {}
+          finalImage = data2.image;
+          usedCalls = 2;
+          // Replace visible image with SFX final
+          setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: finalImage } : s));
         }
       } catch (err) {
+        // If SFX fails, we simply keep the base image
         console.error('add-image-soundEffects failed', err);
       }
-
-      // Finalize UI state and credits
+  
+      // Push EXACTLY ONE image to the panel's stack:
+      // - SFX image if available
+      // - otherwise the base image
+      pushFinalImage(panelKey, finalImage, beforeImage);
+  
+      // Wrap up UI state and credits
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false, generationPhase: null } : s));
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
-      setCredits((prev) => {
-        if (!prev) return prev;
-        const decrement = secondSucceeded ? 2 : 1;
-        return { ...prev, remaining: Math.max(0, (prev.remaining || 0) - decrement) };
-      });
+      setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - usedCalls) } : prev);
       window.dispatchEvent(new Event('credits:refresh'));
     } catch (e) {
       console.error(e);
@@ -265,6 +311,10 @@ export default function WebtoonBuilder() {
         copy.splice(index + 1, 0, newScene);
         return copy;
       });
+      setHistoryByScene(prev => ({
+        ...prev,
+        [getPanelKey(newScene, index + 1)]: { images: [], index: -1 }
+      }));
     } catch (e) {
       console.error('Insert scene error', e);
     } finally {
@@ -375,6 +425,8 @@ export default function WebtoonBuilder() {
             { role: 'system', text: 'You are currently editing Scene 1' },
             { role: 'assistant', text: `Scene description: ${items[0]?.description || ''}` },
           ]);
+          // Initialize empty undo/redo stacks per panel now that we know how many scenes exist
+          initializeHistoryForScenes(items);
           // Merge in any previously generated images from DB
           await applyGeneratedSceneImages(projectId);
         } else {
@@ -405,6 +457,8 @@ export default function WebtoonBuilder() {
             { role: 'system', text: 'You are currently editing Scene 1' },
             { role: 'assistant', text: `Scene description: ${items[0]?.description || ''}` },
           ]);
+          // Initialize empty stacks once scenes are generated
+          initializeHistoryForScenes(items);
           // Persist to DB
           try {
             const payload = items.map((s, i) => ({ scene_no: i + 1, story_text: s.storyText, scene_description: s.description }));
@@ -538,23 +592,40 @@ export default function WebtoonBuilder() {
   const handleRemoveBackground = async (index: number) => {
     const scene = scenes[index];
     if (!scene?.imageDataUrl) return;
+  
+    // Start busy state for this panel
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
+  
+    // Capture what was visible BEFORE this operation (seed for history)
+    const beforeImage = scenes[index]?.imageDataUrl;
+    const panelKey = getPanelKey(scene, index);
+  
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
-      // remove-bg returns final; after success store the result below
+  
+      // remove-bg returns the FINAL image; after success we both show it and push ONE history step
       const res = await fetch('/api/remove-background', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: scene.imageDataUrl, projectId: projectId || undefined, sceneNo: index + 1 }),
+        body: JSON.stringify({
+          imageDataUrl: scene.imageDataUrl,
+          projectId: projectId || undefined,
+          sceneNo: index + 1
+        }),
       });
+  
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to remove background');
-      const prevImage = scenes[index]?.imageDataUrl;
+  
+      // Show the final result
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
-      try { pushFinalImage(getSceneNoForIndex(scene, index), data.image, prevImage); } catch {}
+  
+      // Push EXACTLY ONE new history entry for THIS panel
+      pushFinalImage(panelKey, data.image, beforeImage);
+  
+      // Chat + credits
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
-      // Optimistically decrement and notify header
-      setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
+      setCredits(prev => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
       window.dispatchEvent(new Event('credits:refresh'));
     } catch (e) {
       console.error('remove background error', e);
@@ -565,29 +636,48 @@ export default function WebtoonBuilder() {
   const handleEditScene = async (index: number, instruction: string) => {
     const scene = scenes[index];
     if (!scene?.imageDataUrl) return;
+  
+    // Start busy state for this panel
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
+  
+    // Capture what was visible BEFORE this operation (seed for history)
+    const beforeImage = scenes[index]?.imageDataUrl;
+    const panelKey = getPanelKey(scene, index);
+  
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
-      // edit returns final; after success store the result below
+  
+      // edit-scene-image returns the FINAL image; after success we both show it and push ONE history step
       const res = await fetch('/api/edit-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: scene.imageDataUrl, instruction, projectId: projectId || undefined, sceneNo: index + 1 }),
+        body: JSON.stringify({
+          imageDataUrl: scene.imageDataUrl,
+          instruction,
+          projectId: projectId || undefined,
+          sceneNo: index + 1
+        }),
       });
+  
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to edit scene image');
-      const prevImage = scenes[index]?.imageDataUrl;
+  
+      // Show the final result
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
-      try { pushFinalImage(getSceneNoForIndex(scene, index), data.image, prevImage); } catch {}
+  
+      // Push EXACTLY ONE new history entry for THIS panel
+      pushFinalImage(panelKey, data.image, beforeImage);
+  
+      // Chat + credits
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
-      // Optimistically decrement and notify header
-      setCredits((prev) => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
+      setCredits(prev => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
       window.dispatchEvent(new Event('credits:refresh'));
     } catch (e) {
       console.error('edit scene error', e);
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
     }
   };
+  
 
   const handleQuick = (q: string) => {
     setChatDraft((prev) => (prev ? `${prev} ${q}` : q));
@@ -596,56 +686,73 @@ export default function WebtoonBuilder() {
 
   const handleUndo = (index: number) => {
     const scene = scenes[index];
-    const sceneNo = getSceneNoForIndex(scene, index);
-    const entry = historyByScene[sceneNo];
+    if (!scene) return;
+    const key = getPanelKey(scene, index);
+    const entry = historyByScene[key];
     if (!entry) return;
+  
     const { images, index: cur } = entry;
     if (cur <= 0) return;
+  
     const newIndex = cur - 1;
     const newImg = images[newIndex];
     if (!newImg) return;
-    setHistoryByScene((m) => ({ ...m, [sceneNo]: { images, index: newIndex } }));
+  
+    setHistoryByScene(m => ({ ...m, [key]: { images, index: newIndex } }));
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImg } : s));
-    setSaveSuppressedByScene((m) => ({ ...m, [sceneNo]: false }));
+    // After undo, we allow Save again
+    setSaveSuppressedByScene(m => ({ ...m, [key]: false }));
   };
 
   const handleRedo = (index: number) => {
     const scene = scenes[index];
-    const sceneNo = getSceneNoForIndex(scene, index);
-    const entry = historyByScene[sceneNo];
+    if (!scene) return;
+    const key = getPanelKey(scene, index);
+    const entry = historyByScene[key];
     if (!entry) return;
+  
     const { images, index: cur } = entry;
     if (cur >= images.length - 1) return;
+  
     const newIndex = cur + 1;
     const newImg = images[newIndex];
     if (!newImg) return;
-    setHistoryByScene((m) => ({ ...m, [sceneNo]: { images, index: newIndex } }));
+  
+    setHistoryByScene(m => ({ ...m, [key]: { images, index: newIndex } }));
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImg } : s));
   };
+  
 
   const handleSaveCurrentImageToSupabase = async (index: number) => {
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
       if (!projectId) return;
+  
       const scene = scenes[index];
+      if (!scene?.imageDataUrl) return;
+  
+      const key = getPanelKey(scene, index);
       const sceneNo = getSceneNoForIndex(scene, index);
-      const img = scene?.imageDataUrl;
-      if (!img) return;
-      setSavingSceneNos(prev => prev.includes(sceneNo) ? prev : [...prev, sceneNo]);
+      const img = scene.imageDataUrl;
+  
+      setSavingSceneNos(prev => prev.includes(key) ? prev : [...prev, key]);
+  
       const res = await fetch('/api/save-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, sceneNo: sceneNo, imageDataUrl: img })
+        body: JSON.stringify({ projectId, sceneNo, imageDataUrl: img })
       });
       await res.json().catch(() => ({}));
-    } catch {}
+  
+      // After an explicit save, suppress "Save" until next undo/new push
+      setSaveSuppressedByScene((m) => ({ ...m, [key]: true }));
+    } catch { /* noop */ }
     finally {
-      const projectId = sessionStorage.getItem('currentProjectId') || '';
       const scene = scenes[index];
-      const sceneNo = getSceneNoForIndex(scene, index);
-      setSavingSceneNos(prev => prev.filter(n => n !== sceneNo));
-      // After a successful save, suppress Save until next undo
-      setSaveSuppressedByScene((m) => ({ ...m, [sceneNo]: true }));
+      if (scene) {
+        const key = getPanelKey(scene, index);
+        setSavingSceneNos(prev => prev.filter(k => k !== key));
+      }
     }
   };
 
@@ -710,13 +817,13 @@ export default function WebtoonBuilder() {
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle className="text-white">Scene {i + 1}</CardTitle>
                   <div className="flex items-center gap-2">
-                    {(() => {
-                      const sceneNo = (() => { const p = Number(String(scene?.id || '').split('_')[1]); return Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(p) ? p : (i + 1)); })();
-                      const entry = historyByScene[sceneNo];
+                  {(() => {
+                      const panelKey = getPanelKey(scene, i);
+                      const entry = historyByScene[panelKey];
                       const canU = !!entry && entry.index > 0;
-                      const canR = !!entry && entry.index < entry.images.length - 1;
-                      const showSave = canU && !saveSuppressedByScene[sceneNo];
-                      const isSaving = savingSceneNos.includes(sceneNo);
+                      const canR = !!entry && !!entry.images && entry.index < entry.images.length - 1;
+                      const showSave = canU && !saveSuppressedByScene[panelKey];
+                      const isSaving = savingSceneNos.includes(panelKey);
                       return (
                         <>
                           {showSave && (
@@ -753,7 +860,7 @@ export default function WebtoonBuilder() {
                           )}
                         </>
                       );
-                    })()}
+                      })()}
                     <button
                     aria-label="Delete scene"
                     className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded px-2 py-0.5 text-sm"
@@ -761,10 +868,14 @@ export default function WebtoonBuilder() {
                       e.stopPropagation();
                       const projectId = sessionStorage.getItem('currentProjectId');
                       if (!projectId) return;
+                    
+                      const panelKey = getPanelKey(scene, i);
+                      // Drop local history for this panel immediately
+                      removeHistoryForPanel(panelKey);
+                    
                       const parsed = Number(String(scene?.id || '').split('_')[1]);
                       const sceneNo = Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
-                      // Queue delete and process in background; block with loader across refreshes
-                      // Show per-card loader, then delete server-side, then remove locally and refresh cache
+                    
                       setDeletingSceneNos(prev => prev.includes(sceneNo) ? prev : [...prev, sceneNo]);
                       (async () => {
                         try {
@@ -772,13 +883,14 @@ export default function WebtoonBuilder() {
                           if (!res.ok) throw new Error('delete failed');
                           // Remove panel locally now
                           setScenes(prev => prev.filter((_, idx) => idx !== i));
-                          // Refresh authoritative scenes and update cache
+                          // Refresh authoritative scenes and update cache + reinit stacks
                           try {
                             const items = await refreshScenesFromDb(projectId);
                             try { localStorage.setItem(getScenesCacheKey(projectId), JSON.stringify(items)); } catch {}
+                            initializeHistoryForScenes(items);
                           } catch {}
                         } catch (err) {
-                          // Hide loader if failed
+                          // If failed, you could restore history here if you want
                         } finally {
                           setDeletingSceneNos(prev => prev.filter(n => n !== sceneNo));
                         }
