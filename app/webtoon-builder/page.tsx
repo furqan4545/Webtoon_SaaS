@@ -48,6 +48,8 @@ export default function WebtoonBuilder() {
   const deleteQueueProcessingRef = useRef<boolean>(false); // legacy; not used with new approach
   const [savingSceneNos, setSavingSceneNos] = useState<string[]>([]);
   const [saveSuppressedByScene, setSaveSuppressedByScene] = useState<Record<string, boolean>>({});
+  // Simple per-panel retry counter for image load hiccups
+  const [imgRetryByPanel, setImgRetryByPanel] = useState<Record<string, number>>({});
   const [historyByScene, setHistoryByScene] = useState<Record<string, { images: string[]; index: number }>>({});
 
 
@@ -151,7 +153,8 @@ export default function WebtoonBuilder() {
   };
 
   // Immutable snapshot helpers for history (avoid remote URLs that get overwritten)
-  const isDataUrl = (s?: string) => !!s && /^data:image\//i.test(s);
+  // const isDataUrl = (s?: string) => !!s && /^data:image\//i.test(s);
+  const isDataUrl = (s?: string) => !!s && /^data:image\//i.test(s || '');
 
   const toDataURL = async (src?: string): Promise<string | undefined> => {
     if (!src) return undefined;
@@ -977,11 +980,57 @@ export default function WebtoonBuilder() {
                           </div>
                         )}
                       </div>
-                      {scene.imageDataUrl && (
-                        <div className="mt-4 flex justify-center">
-                          <img src={scene.imageDataUrl} alt={`Scene ${i + 1}`} className="max-w-[480px] w-full rounded-md border border-white/10" />
-                        </div>
-                      )}
+                        {(() => {
+                          const panelKey = getPanelKey(scene, i);
+                          const retry = imgRetryByPanel[panelKey] || 0;
+
+                          // If it's a remote URL, add a tiny cache-buster tied to retry count.
+                          // If it's a data URL, use it as-is.
+                          const base = scene.imageDataUrl || '';
+                          const src = !isDataUrl(base)
+                            ? `${base}${base.includes('?') ? '&' : '?'}cb=${retry}`
+                            : base;
+
+                          return scene.imageDataUrl ? (
+                            <div className="mt-4 flex flex-col items-center">
+                              <img
+                                key={`img-${panelKey}-${retry}`}         // remounts on retry
+                                src={src}
+                                alt={`Scene ${i + 1}`}
+                                decoding="async"
+                                loading="eager"
+                                onLoad={() => {
+                                  // Reset retry counter on success (optional)
+                                  if (retry) {
+                                    setImgRetryByPanel(prev => ({ ...prev, [panelKey]: 0 }));
+                                  }
+                                }}
+                                onError={() => {
+                                  // Bump retry up to 2 automatic attempts. After that, show a small manual refresh chip.
+                                  setImgRetryByPanel(prev => {
+                                    const n = (prev[panelKey] || 0);
+                                    if (n >= 2) return prev;  // stop auto-retrying
+                                    return { ...prev, [panelKey]: n + 1 };
+                                  });
+                                }}
+                                className="max-w-[480px] w-full rounded-md border border-white/10"
+                              />
+
+                              {(retry >= 2 && !isDataUrl(base)) && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setImgRetryByPanel(prev => ({ ...prev, [panelKey]: (prev[panelKey] || 0) + 1 }))
+                                  }
+                                  className="mt-2 text-xs bg-white/10 hover:bg-white/20 rounded-full px-3 py-1"
+                                  title="Retry loading image"
+                                >
+                                  Refresh image
+                                </button>
+                              )}
+                            </div>
+                          ) : null;
+                        })()}
                     </>
                   )}
                 </CardContent>
