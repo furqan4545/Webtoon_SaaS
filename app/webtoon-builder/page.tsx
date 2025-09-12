@@ -97,40 +97,46 @@ export default function WebtoonBuilder() {
   const incDeletingCount = (pid: string) => setDeletingCount(pid, getDeletingCount(pid) + 1);
   const decDeletingCount = (pid: string) => setDeletingCount(pid, Math.max(0, getDeletingCount(pid) - 1));
   
-  const pushFinalImage = (panelKey: string, image?: string, previous?: string) => {
-    if (!image) return;
-    setHistoryByScene((prev) => {
+  // Push exactly one immutable image per action (SFX or base), seeded with the pre-action visible image
+  const pushFinalSnapshot = async (panelKey: string, finalSrc?: string, previousSrc?: string) => {
+    if (!finalSrc) return;
+
+    const [finalSnap, prevSnap] = await Promise.all([
+      toDataURL(finalSrc),
+      toDataURL(previousSrc),
+    ]);
+    if (!finalSnap) return;
+
+    setHistoryByScene(prev => {
       const entry = prev[panelKey] || { images: [], index: -1 };
       let images = entry.images.slice();
       let index = entry.index;
-  
+
+      // If user had undone, truncate forward branch
+      if (index < images.length - 1) images = images.slice(0, index + 1);
+
       if (images.length === 0) {
-        // First time: optionally seed with previous, then push new
-        if (previous && previous !== image) {
-          images = [previous, image];
+        if (prevSnap && prevSnap !== finalSnap) {
+          images = [prevSnap, finalSnap];
           index = 1;
         } else {
-          images = [image];
+          images = [finalSnap];
           index = 0;
         }
       } else {
-        // If the user had undone some steps, truncate forward history
-        if (index < images.length - 1) images = images.slice(0, index + 1);
-        // Push new only if different to avoid duplicates
-        if (images[images.length - 1] !== image) {
-          images.push(image);
+        if (images[images.length - 1] !== finalSnap) {
+          images.push(finalSnap);
           index = images.length - 1;
         } else {
           index = images.length - 1;
         }
       }
-  
-      if (images === entry.images && index === entry.index) return prev;
+
       return { ...prev, [panelKey]: { images, index } };
     });
-  
-    // New image exists → allow Save until explicitly saved or undone
-    setSaveSuppressedByScene((m) => ({ ...m, [panelKey]: false }));
+
+    // After a new step, allow Save until explicitly saved or undone
+    setSaveSuppressedByScene(m => ({ ...m, [panelKey]: false }));
   };
 
   const getSceneNoForIndex = (scene: any, index: number) => {
@@ -142,6 +148,28 @@ export default function WebtoonBuilder() {
   const getPanelKey = (scene: any, index: number): string => {
     const id = (scene && typeof scene.id === 'string' && scene.id.trim()) ? scene.id : `scene_${index + 1}`;
     return String(id);
+  };
+
+  // Immutable snapshot helpers for history (avoid remote URLs that get overwritten)
+  const isDataUrl = (s?: string) => !!s && /^data:image\//i.test(s);
+
+  const toDataURL = async (src?: string): Promise<string | undefined> => {
+    if (!src) return undefined;
+    if (isDataUrl(src)) return src; // already immutable
+    try {
+      const resp = await fetch(src);
+      const blob = await resp.blob();
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result));
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+      return dataUrl;
+    } catch {
+      // Fallback to original (may still be mutable, but best effort)
+      return src;
+    }
   };
 
   // Initialize empty stacks once we know how many scenes exist
@@ -268,7 +296,7 @@ export default function WebtoonBuilder() {
       // Push EXACTLY ONE image to the panel's stack:
       // - SFX image if available
       // - otherwise the base image
-      pushFinalImage(panelKey, finalImage, beforeImage);
+      await pushFinalSnapshot(panelKey, finalImage, beforeImage);
   
       // Wrap up UI state and credits
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false, generationPhase: null } : s));
@@ -593,37 +621,28 @@ export default function WebtoonBuilder() {
     const scene = scenes[index];
     if (!scene?.imageDataUrl) return;
   
-    // Start busy state for this panel
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
   
-    // Capture what was visible BEFORE this operation (seed for history)
     const beforeImage = scenes[index]?.imageDataUrl;
     const panelKey = getPanelKey(scene, index);
   
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
   
-      // remove-bg returns the FINAL image; after success we both show it and push ONE history step
       const res = await fetch('/api/remove-background', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageDataUrl: scene.imageDataUrl,
-          projectId: projectId || undefined,
-          sceneNo: index + 1
-        }),
+        body: JSON.stringify({ imageDataUrl: scene.imageDataUrl, projectId: projectId || undefined, sceneNo: index + 1 }),
       });
-  
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to remove background');
   
-      // Show the final result
+      // Show latest
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
   
-      // Push EXACTLY ONE new history entry for THIS panel
-      pushFinalImage(panelKey, data.image, beforeImage);
+      // Push immutable snapshot for undo/redo
+      await pushFinalSnapshot(panelKey, data.image, beforeImage);
   
-      // Chat + credits
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
       setCredits(prev => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
       window.dispatchEvent(new Event('credits:refresh'));
@@ -632,43 +651,34 @@ export default function WebtoonBuilder() {
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
     }
   };
+  
 
   const handleEditScene = async (index: number, instruction: string) => {
     const scene = scenes[index];
     if (!scene?.imageDataUrl) return;
   
-    // Start busy state for this panel
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
   
-    // Capture what was visible BEFORE this operation (seed for history)
     const beforeImage = scenes[index]?.imageDataUrl;
     const panelKey = getPanelKey(scene, index);
   
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
   
-      // edit-scene-image returns the FINAL image; after success we both show it and push ONE history step
       const res = await fetch('/api/edit-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          imageDataUrl: scene.imageDataUrl,
-          instruction,
-          projectId: projectId || undefined,
-          sceneNo: index + 1
-        }),
+        body: JSON.stringify({ imageDataUrl: scene.imageDataUrl, instruction, projectId: projectId || undefined, sceneNo: index + 1 }),
       });
-  
       const data = await res.json();
       if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to edit scene image');
   
-      // Show the final result
+      // Show latest
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
   
-      // Push EXACTLY ONE new history entry for THIS panel
-      pushFinalImage(panelKey, data.image, beforeImage);
+      // Push immutable snapshot for undo/redo
+      await pushFinalSnapshot(panelKey, data.image, beforeImage);
   
-      // Chat + credits
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
       setCredits(prev => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
       window.dispatchEvent(new Event('credits:refresh'));
@@ -677,6 +687,7 @@ export default function WebtoonBuilder() {
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false } : s));
     }
   };
+  
   
 
   const handleQuick = (q: string) => {
