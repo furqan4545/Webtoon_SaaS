@@ -247,6 +247,7 @@ export default function WebtoonBuilder() {
         const sceneNo = Number.isFinite(s.sceneNo) ? Number(s.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
         return { ...s, imageDataUrl: results[sceneNo] || s.imageDataUrl };
       }));
+      try { await seedBaselinesFromCurrentScenes(); } catch {}
     } catch {}
   };
 
@@ -345,6 +346,47 @@ export default function WebtoonBuilder() {
       // Fallback to original (may still be mutable, but best effort)
       return src;
     }
+  };
+
+  // Seed [baseline] snapshots for any panels that currently display an image
+  // but have no history yet (index < 0 or no images). Persists to IDB (best effort).
+  const seedBaselinesFromCurrentScenes = async () => {
+    try {
+      if (!scenes || scenes.length === 0) return;
+      const pid = sessionStorage.getItem('currentProjectId') || '';
+
+      // Build updates in one pass (convert to immutable Data URLs)
+      const updates: Record<string, { images: string[]; index: number }> = {};
+      for (let i = 0; i < scenes.length; i++) {
+        const s = scenes[i];
+        const k = getPanelKey(s, i);
+        const entry = historyByScene[k];
+
+        // Already has a history baseline? skip.
+        if (entry && entry.images?.length) continue;
+
+        // Need an image present on the scene to seed.
+        if (!s?.imageDataUrl) continue;
+
+        // Convert to data URL for immutability
+        const snap = await toDataURL(s.imageDataUrl);
+        if (!snap) continue;
+
+        updates[k] = { images: [snap], index: 0 };
+      }
+
+      if (Object.keys(updates).length === 0) return;
+
+      // Commit to memory
+      setHistoryByScene(prev => ({ ...prev, ...updates }));
+
+      // Persist to IDB (best effort)
+      if (pid) {
+        for (const [k, v] of Object.entries(updates)) {
+          try { await idbPutStack(pid, k, v.images, v.index); } catch {}
+        }
+      }
+    } catch {}
   };
 
   // Initialize empty stacks once we know how many scenes exist
@@ -729,6 +771,21 @@ export default function WebtoonBuilder() {
     run();
   }, []);
 
+
+  // Whenever panels get/replace images and the corresponding history is empty, seed [baseline]
+  useEffect(() => {
+    if (!scenes || scenes.length === 0) return;
+
+    // Build a light-weight signature of what images are currently shown
+    const sig = scenes.map((s, i) => `${getPanelKey(s, i)}::${s?.imageDataUrl || ''}`).join('|');
+
+    (async () => {
+      try { await seedBaselinesFromCurrentScenes(); } catch {}
+    })();
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenes.map(s => s?.imageDataUrl || '').join('|')]);
+
   // Auto-generate first scene image only on first navigation (not on reload), once per project per session
   useEffect(() => {
     if (loading) return;
@@ -941,17 +998,12 @@ export default function WebtoonBuilder() {
   
     setHistoryByScene(m => ({ ...m, [key]: { images, index: newIndex } }));
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImg } : s));
-    // After undo, we allow Save again
     setSaveSuppressedByScene(m => ({ ...m, [key]: false }));
-    // Persist current index (best effort)
+  
+    // Persist the known newIndex and images (not the stale state)
     try {
       const projectId = sessionStorage.getItem('currentProjectId') || '';
-      if (projectId) {
-        const entry2 = historyByScene[key]; // may be slightly stale; safe to recompute
-        const images2 = entry2?.images || [];
-        const idx2 = (m => (m[key]?.index ?? 0))(historyByScene); // fallback
-        idbPutStack(projectId, key, images2, (historyByScene[key]?.index ?? 0));
-      }
+      if (projectId) { idbPutStack(projectId, key, images, newIndex); }
     } catch {}
   };
 
@@ -971,15 +1023,10 @@ export default function WebtoonBuilder() {
   
     setHistoryByScene(m => ({ ...m, [key]: { images, index: newIndex } }));
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImg } : s));
-    // Persist current index (best effort)
+  
     try {
       const projectId = sessionStorage.getItem('currentProjectId') || '';
-      if (projectId) {
-        const entry2 = historyByScene[key]; // may be slightly stale; safe to recompute
-        const images2 = entry2?.images || [];
-        const idx2 = (m => (m[key]?.index ?? 0))(historyByScene); // fallback
-        idbPutStack(projectId, key, images2, (historyByScene[key]?.index ?? 0));
-      }
+      if (projectId) { idbPutStack(projectId, key, images, newIndex); }
     } catch {}
   };
   
@@ -988,15 +1035,13 @@ export default function WebtoonBuilder() {
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
       if (!projectId) return;
-  
       const scene = scenes[index];
-      if (!scene?.imageDataUrl) return;
-  
-      const key = getPanelKey(scene, index);
+      const panelKey = getPanelKey(scene, index);
       const sceneNo = getSceneNoForIndex(scene, index);
-      const img = scene.imageDataUrl;
+      const img = scene?.imageDataUrl;
+      if (!img) return;
   
-      setSavingSceneNos(prev => prev.includes(key) ? prev : [...prev, key]);
+      setSavingSceneNos(prev => prev.includes(panelKey) ? prev : [...prev, panelKey]);
   
       const res = await fetch('/api/save-scene-image', {
         method: 'POST',
@@ -1004,16 +1049,13 @@ export default function WebtoonBuilder() {
         body: JSON.stringify({ projectId, sceneNo, imageDataUrl: img })
       });
       await res.json().catch(() => ({}));
-  
-      // After an explicit save, suppress "Save" until next undo/new push
-      setSaveSuppressedByScene((m) => ({ ...m, [key]: true }));
-    } catch { /* noop */ }
+    } catch {}
     finally {
       const scene = scenes[index];
-      if (scene) {
-        const key = getPanelKey(scene, index);
-        setSavingSceneNos(prev => prev.filter(k => k !== key));
-      }
+      const panelKey = getPanelKey(scene, index);
+      setSavingSceneNos(prev => prev.filter(k => k !== panelKey));
+      // After a successful save, suppress Save until next undo
+      setSaveSuppressedByScene(m => ({ ...m, [panelKey]: true }));
     }
   };
 
