@@ -43,6 +43,13 @@ const openUndoDb = (): Promise<IDBDatabase | null> =>
     req.onerror = () => resolve(null);
   });
 
+const txDone = (tx: IDBTransaction) =>
+  new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(tx.error || new Error('IDB transaction aborted'));
+    tx.onerror = () => reject(tx.error || new Error('IDB transaction error'));
+  });
+
 const idbPutStack = async (projectId: string, panelKey: string, images: string[], index: number) => {
   try {
     const db = await openUndoDb(); if (!db) return;
@@ -58,7 +65,7 @@ const idbPutStack = async (projectId: string, panelKey: string, images: string[]
       approxBytes: approxBytesOfDataUrls(images),
     };
     store.put(rec);
-    tx.oncomplete;
+    await txDone(tx);   // ⟵ wait for commit
     db.close();
   } catch {}
 };
@@ -74,7 +81,8 @@ const idbGetStacksByProject = async (projectId: string): Promise<IdbStackRecord[
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => resolve([]);
     });
-    tx.oncomplete; db.close();
+    await txDone(tx);   // ⟵ ensure clean finish
+    db.close();
     return res;
   } catch { return []; }
 };
@@ -90,8 +98,9 @@ const idbDeleteProject = async (projectId: string) => {
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => resolve([]);
     });
-    keys.forEach((k) => store.delete(k));
-    tx.oncomplete; db.close();
+    for (const k of keys) store.delete(k);
+    await txDone(tx);   // ⟵ wait for deletes to commit
+    db.close();
   } catch {}
 };
 
@@ -100,7 +109,8 @@ const idbDeletePanel = async (projectId: string, panelKey: string) => {
     const db = await openUndoDb(); if (!db) return;
     const tx = db.transaction(UNDO_DB.STORE, 'readwrite');
     tx.objectStore(UNDO_DB.STORE).delete(`${projectId}::${panelKey}`);
-    tx.oncomplete; db.close();
+    await txDone(tx);   // ⟵ wait for commit
+    db.close();
   } catch {}
 };
 
@@ -109,15 +119,16 @@ const idbClearAll = async () => {
     const db = await openUndoDb(); if (!db) return;
     const tx = db.transaction(UNDO_DB.STORE, 'readwrite');
     tx.objectStore(UNDO_DB.STORE).clear();
-    tx.oncomplete; db.close();
+    await txDone(tx);   // ⟵ wait for commit
+    db.close();
   } catch {}
 };
 
 // GC sweep across ALL projects (TTL + per-panel trim + global budget)
 const idbGcSweep = async (opts?: { ttlMs?: number; maxPerPanel?: number; globalBudgetBytes?: number }) => {
-  const ttlMs = opts?.ttlMs ?? 48 * 60 * 60 * 1000;     // 48h
-  const maxPerPanel = opts?.maxPerPanel ?? 10;          // last 10 steps
-  const globalBudget = opts?.globalBudgetBytes ?? 150 * 1024 * 1024; // ~150MB
+  const ttlMs = opts?.ttlMs ?? 48 * 60 * 60 * 1000;
+  const maxPerPanel = opts?.maxPerPanel ?? 10;
+  const globalBudget = opts?.globalBudgetBytes ?? 150 * 1024 * 1024;
 
   try {
     const db = await openUndoDb(); if (!db) return;
@@ -131,10 +142,8 @@ const idbGcSweep = async (opts?: { ttlMs?: number; maxPerPanel?: number; globalB
 
     let totalBytes = 0;
     const now = nowMs();
-    // TTL + per-panel trim
-    for (const r of records) {
-      let changed = false;
 
+    for (const r of records) {
       if (now - r.updatedAt > ttlMs) {
         store.delete(r.key);
         continue;
@@ -146,19 +155,17 @@ const idbGcSweep = async (opts?: { ttlMs?: number; maxPerPanel?: number; globalB
         r.approxBytes = approxBytesOfDataUrls(keep);
         r.updatedAt = now;
         store.put(r);
-        changed = true;
       }
       totalBytes += r.approxBytes || approxBytesOfDataUrls(r.images);
     }
 
-    // Global budget: drop LRU until under budget
     if (totalBytes > globalBudget) {
       const aliveReq = store.getAll();
       const alive: IdbStackRecord[] = await new Promise((resolve) => {
         aliveReq.onsuccess = () => resolve(aliveReq.result || []);
         aliveReq.onerror = () => resolve([]);
       });
-      alive.sort((a, b) => (a.updatedAt ?? 0) - (b.updatedAt ?? 0)); // oldest first
+      alive.sort((a, b) => (a.updatedAt ?? 0) - (b.updatedAt ?? 0));
       let bytes = alive.reduce((s, r) => s + (r.approxBytes || approxBytesOfDataUrls(r.images)), 0);
       for (const r of alive) {
         if (bytes <= globalBudget) break;
@@ -167,9 +174,11 @@ const idbGcSweep = async (opts?: { ttlMs?: number; maxPerPanel?: number; globalB
       }
     }
 
-    tx.oncomplete; db.close();
+    await txDone(tx);   // ⟵ wait for all puts/deletes
+    db.close();
   } catch {}
 };
+
 
 
 
