@@ -11,6 +11,168 @@ import { createClient as createBrowserSupabase } from "@/utils/supabase/client";
 import { Info } from "lucide-react";
 import StepBar from "@/components/StepBar";
 
+
+// ==== IndexedDB: Undo/Redo stacks (per project/panel) ====
+type IdbStackRecord = {
+  key: string;            // `${projectId}::${panelKey}`
+  projectId: string;
+  panelKey: string;
+  images: string[];       // immutable Data URLs
+  index: number;
+  updatedAt: number;      // ms
+  approxBytes: number;    // quick LRU/GC metric
+};
+
+const UNDO_DB = { NAME: 'webtoon_undo', STORE: 'stacks', VERSION: 1 };
+const nowMs = () => Date.now();
+const approxBytesOfDataUrls = (arr: string[]) => arr.reduce((sum, s) => sum + Math.floor((s?.length || 0) * 0.75), 0);
+
+const openUndoDb = (): Promise<IDBDatabase | null> =>
+  new Promise((resolve) => {
+    if (typeof window === 'undefined' || !('indexedDB' in window)) return resolve(null);
+    const req = indexedDB.open(UNDO_DB.NAME, UNDO_DB.VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(UNDO_DB.STORE)) {
+        const store = db.createObjectStore(UNDO_DB.STORE, { keyPath: 'key' });
+        store.createIndex('by_project', 'projectId', { unique: false });
+        store.createIndex('by_updated', 'updatedAt', { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+
+const idbPutStack = async (projectId: string, panelKey: string, images: string[], index: number) => {
+  try {
+    const db = await openUndoDb(); if (!db) return;
+    const tx = db.transaction(UNDO_DB.STORE, 'readwrite');
+    const store = tx.objectStore(UNDO_DB.STORE);
+    const rec: IdbStackRecord = {
+      key: `${projectId}::${panelKey}`,
+      projectId,
+      panelKey,
+      images,
+      index,
+      updatedAt: nowMs(),
+      approxBytes: approxBytesOfDataUrls(images),
+    };
+    store.put(rec);
+    tx.oncomplete;
+    db.close();
+  } catch {}
+};
+
+const idbGetStacksByProject = async (projectId: string): Promise<IdbStackRecord[]> => {
+  try {
+    const db = await openUndoDb(); if (!db) return [];
+    const tx = db.transaction(UNDO_DB.STORE, 'readonly');
+    const store = tx.objectStore(UNDO_DB.STORE);
+    const idx = store.index('by_project');
+    const req = idx.getAll(IDBKeyRange.only(projectId));
+    const res: IdbStackRecord[] = await new Promise((resolve) => {
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+    tx.oncomplete; db.close();
+    return res;
+  } catch { return []; }
+};
+
+const idbDeleteProject = async (projectId: string) => {
+  try {
+    const db = await openUndoDb(); if (!db) return;
+    const tx = db.transaction(UNDO_DB.STORE, 'readwrite');
+    const store = tx.objectStore(UNDO_DB.STORE);
+    const idx = store.index('by_project');
+    const req = idx.getAllKeys(IDBKeyRange.only(projectId));
+    const keys: IDBValidKey[] = await new Promise((resolve) => {
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+    keys.forEach((k) => store.delete(k));
+    tx.oncomplete; db.close();
+  } catch {}
+};
+
+const idbDeletePanel = async (projectId: string, panelKey: string) => {
+  try {
+    const db = await openUndoDb(); if (!db) return;
+    const tx = db.transaction(UNDO_DB.STORE, 'readwrite');
+    tx.objectStore(UNDO_DB.STORE).delete(`${projectId}::${panelKey}`);
+    tx.oncomplete; db.close();
+  } catch {}
+};
+
+const idbClearAll = async () => {
+  try {
+    const db = await openUndoDb(); if (!db) return;
+    const tx = db.transaction(UNDO_DB.STORE, 'readwrite');
+    tx.objectStore(UNDO_DB.STORE).clear();
+    tx.oncomplete; db.close();
+  } catch {}
+};
+
+// GC sweep across ALL projects (TTL + per-panel trim + global budget)
+const idbGcSweep = async (opts?: { ttlMs?: number; maxPerPanel?: number; globalBudgetBytes?: number }) => {
+  const ttlMs = opts?.ttlMs ?? 48 * 60 * 60 * 1000;     // 48h
+  const maxPerPanel = opts?.maxPerPanel ?? 10;          // last 10 steps
+  const globalBudget = opts?.globalBudgetBytes ?? 150 * 1024 * 1024; // ~150MB
+
+  try {
+    const db = await openUndoDb(); if (!db) return;
+    const tx = db.transaction(UNDO_DB.STORE, 'readwrite');
+    const store = tx.objectStore(UNDO_DB.STORE);
+    const req = store.getAll();
+    const records: IdbStackRecord[] = await new Promise((resolve) => {
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
+    });
+
+    let totalBytes = 0;
+    const now = nowMs();
+    // TTL + per-panel trim
+    for (const r of records) {
+      let changed = false;
+
+      if (now - r.updatedAt > ttlMs) {
+        store.delete(r.key);
+        continue;
+      }
+      if (r.images.length > maxPerPanel) {
+        const keep = r.images.slice(-maxPerPanel);
+        r.images = keep;
+        r.index = Math.min(r.index, keep.length - 1);
+        r.approxBytes = approxBytesOfDataUrls(keep);
+        r.updatedAt = now;
+        store.put(r);
+        changed = true;
+      }
+      totalBytes += r.approxBytes || approxBytesOfDataUrls(r.images);
+    }
+
+    // Global budget: drop LRU until under budget
+    if (totalBytes > globalBudget) {
+      const aliveReq = store.getAll();
+      const alive: IdbStackRecord[] = await new Promise((resolve) => {
+        aliveReq.onsuccess = () => resolve(aliveReq.result || []);
+        aliveReq.onerror = () => resolve([]);
+      });
+      alive.sort((a, b) => (a.updatedAt ?? 0) - (b.updatedAt ?? 0)); // oldest first
+      let bytes = alive.reduce((s, r) => s + (r.approxBytes || approxBytesOfDataUrls(r.images)), 0);
+      for (const r of alive) {
+        if (bytes <= globalBudget) break;
+        store.delete(r.key);
+        bytes -= (r.approxBytes || approxBytesOfDataUrls(r.images));
+      }
+    }
+
+    tx.oncomplete; db.close();
+  } catch {}
+};
+
+
+
 interface SceneItem {
   id: string;
   storyText: string;
@@ -100,45 +262,35 @@ export default function WebtoonBuilder() {
   const decDeletingCount = (pid: string) => setDeletingCount(pid, Math.max(0, getDeletingCount(pid) - 1));
   
   // Push exactly one immutable image per action (SFX or base), seeded with the pre-action visible image
-  const pushFinalSnapshot = async (panelKey: string, finalSrc?: string, previousSrc?: string) => {
+  // Push exactly one immutable image per action and persist to IDB (if projectId present)
+  const pushFinalSnapshot = async (panelKey: string, finalSrc?: string, previousSrc?: string, projectId?: string) => {
     if (!finalSrc) return;
 
-    const [finalSnap, prevSnap] = await Promise.all([
-      toDataURL(finalSrc),
-      toDataURL(previousSrc),
-    ]);
+    const [finalSnap, prevSnap] = await Promise.all([toDataURL(finalSrc), toDataURL(previousSrc)]);
     if (!finalSnap) return;
 
-    setHistoryByScene(prev => {
-      const entry = prev[panelKey] || { images: [], index: -1 };
-      let images = entry.images.slice();
-      let index = entry.index;
+    // Compute next state from current (no races in this UI path)
+    const entry = historyByScene[panelKey] || { images: [], index: -1 };
+    let images = entry.images.slice();
+    let index = entry.index;
 
-      // If user had undone, truncate forward branch
-      if (index < images.length - 1) images = images.slice(0, index + 1);
+    if (index < images.length - 1) images = images.slice(0, index + 1);
+    if (images.length === 0) {
+      if (prevSnap && prevSnap !== finalSnap) { images = [prevSnap, finalSnap]; index = 1; }
+      else { images = [finalSnap]; index = 0; }
+    } else {
+      if (images[images.length - 1] !== finalSnap) { images.push(finalSnap); index = images.length - 1; }
+      else { index = images.length - 1; }
+    }
 
-      if (images.length === 0) {
-        if (prevSnap && prevSnap !== finalSnap) {
-          images = [prevSnap, finalSnap];
-          index = 1;
-        } else {
-          images = [finalSnap];
-          index = 0;
-        }
-      } else {
-        if (images[images.length - 1] !== finalSnap) {
-          images.push(finalSnap);
-          index = images.length - 1;
-        } else {
-          index = images.length - 1;
-        }
-      }
-
-      return { ...prev, [panelKey]: { images, index } };
-    });
-
-    // After a new step, allow Save until explicitly saved or undone
+    // Commit to memory
+    setHistoryByScene(prev => ({ ...prev, [panelKey]: { images, index } }));
     setSaveSuppressedByScene(m => ({ ...m, [panelKey]: false }));
+
+    // Persist to IDB (best effort)
+    try {
+      if (projectId) await idbPutStack(projectId, panelKey, images, index);
+    } catch {}
   };
 
   const getSceneNoForIndex = (scene: any, index: number) => {
@@ -299,7 +451,9 @@ export default function WebtoonBuilder() {
       // Push EXACTLY ONE image to the panel's stack:
       // - SFX image if available
       // - otherwise the base image
-      await pushFinalSnapshot(panelKey, finalImage, beforeImage);
+      // await pushFinalSnapshot(panelKey, finalImage, beforeImage);
+      await pushFinalSnapshot(panelKey, finalImage, beforeImage, projectId || undefined);
+
   
       // Wrap up UI state and credits
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: false, generationPhase: null } : s));
@@ -458,6 +612,31 @@ export default function WebtoonBuilder() {
           ]);
           // Initialize empty undo/redo stacks per panel now that we know how many scenes exist
           initializeHistoryForScenes(items);
+          // Restore panel stacks for this project from IndexedDB (if any)
+          try {
+            const projectId = sessionStorage.getItem('currentProjectId') || '';
+            if (projectId) {
+              const recs = await idbGetStacksByProject(projectId);
+              if (recs.length > 0) {
+                // Merge into in-memory history + update visible snapshot
+                setHistoryByScene(prev => {
+                  const next = { ...prev };
+                  for (const r of recs) {
+                    next[r.panelKey] = { images: r.images || [], index: Math.max(0, Math.min(r.index ?? 0, (r.images?.length || 1) - 1)) };
+                  }
+                  return next;
+                });
+                setScenes(prev => prev.map((s, i) => {
+                  const key = getPanelKey(s, i);
+                  const rec = recs.find(rr => rr.panelKey === key);
+                  if (!rec || !rec.images?.length) return s;
+                  const snap = rec.images[Math.max(0, Math.min(rec.index ?? 0, rec.images.length - 1))];
+                  return { ...s, imageDataUrl: snap || s.imageDataUrl };
+                }));
+              }
+            }
+          } catch {}
+
           // Merge in any previously generated images from DB
           await applyGeneratedSceneImages(projectId);
         } else {
@@ -490,6 +669,30 @@ export default function WebtoonBuilder() {
           ]);
           // Initialize empty stacks once scenes are generated
           initializeHistoryForScenes(items);
+          // Restore panel stacks for this project from IndexedDB (if any)
+          try {
+            const projectId = sessionStorage.getItem('currentProjectId') || '';
+            if (projectId) {
+              const recs = await idbGetStacksByProject(projectId);
+              if (recs.length > 0) {
+                // Merge into in-memory history + update visible snapshot
+                setHistoryByScene(prev => {
+                  const next = { ...prev };
+                  for (const r of recs) {
+                    next[r.panelKey] = { images: r.images || [], index: Math.max(0, Math.min(r.index ?? 0, (r.images?.length || 1) - 1)) };
+                  }
+                  return next;
+                });
+                setScenes(prev => prev.map((s, i) => {
+                  const key = getPanelKey(s, i);
+                  const rec = recs.find(rr => rr.panelKey === key);
+                  if (!rec || !rec.images?.length) return s;
+                  const snap = rec.images[Math.max(0, Math.min(rec.index ?? 0, rec.images.length - 1))];
+                  return { ...s, imageDataUrl: snap || s.imageDataUrl };
+                }));
+              }
+            }
+          } catch {}
           // Persist to DB
           try {
             const payload = items.map((s, i) => ({ scene_no: i + 1, story_text: s.storyText, scene_description: s.description }));
@@ -644,7 +847,9 @@ export default function WebtoonBuilder() {
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
   
       // Push immutable snapshot for undo/redo
-      await pushFinalSnapshot(panelKey, data.image, beforeImage);
+      // await pushFinalSnapshot(panelKey, data.image, beforeImage);
+      await pushFinalSnapshot(panelKey, data.image, beforeImage, projectId || undefined);
+
   
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
       setCredits(prev => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
@@ -680,8 +885,9 @@ export default function WebtoonBuilder() {
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image, isGenerating: false } : s));
   
       // Push immutable snapshot for undo/redo
-      await pushFinalSnapshot(panelKey, data.image, beforeImage);
-  
+      // await pushFinalSnapshot(panelKey, data.image, beforeImage);
+      await pushFinalSnapshot(panelKey, data.image, beforeImage, projectId || undefined);
+
       setChatMessages(prev => [...prev, { role: 'assistant', text: 'Done' }]);
       setCredits(prev => prev ? { ...prev, remaining: Math.max(0, (prev.remaining || 0) - 1) } : prev);
       window.dispatchEvent(new Event('credits:refresh'));
@@ -716,6 +922,16 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImg } : s));
     // After undo, we allow Save again
     setSaveSuppressedByScene(m => ({ ...m, [key]: false }));
+    // Persist current index (best effort)
+    try {
+      const projectId = sessionStorage.getItem('currentProjectId') || '';
+      if (projectId) {
+        const entry2 = historyByScene[key]; // may be slightly stale; safe to recompute
+        const images2 = entry2?.images || [];
+        const idx2 = (m => (m[key]?.index ?? 0))(historyByScene); // fallback
+        idbPutStack(projectId, key, images2, (historyByScene[key]?.index ?? 0));
+      }
+    } catch {}
   };
 
   const handleRedo = (index: number) => {
@@ -734,6 +950,16 @@ export default function WebtoonBuilder() {
   
     setHistoryByScene(m => ({ ...m, [key]: { images, index: newIndex } }));
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: newImg } : s));
+    // Persist current index (best effort)
+    try {
+      const projectId = sessionStorage.getItem('currentProjectId') || '';
+      if (projectId) {
+        const entry2 = historyByScene[key]; // may be slightly stale; safe to recompute
+        const images2 = entry2?.images || [];
+        const idx2 = (m => (m[key]?.index ?? 0))(historyByScene); // fallback
+        idbPutStack(projectId, key, images2, (historyByScene[key]?.index ?? 0));
+      }
+    } catch {}
   };
   
 
@@ -777,6 +1003,13 @@ export default function WebtoonBuilder() {
     processUserText(value);
     setChatDraft('');
   };
+
+  useEffect(() => {
+    const projectId = sessionStorage.getItem('currentProjectId') || '';
+    return () => {
+      if (projectId) { idbDeleteProject(projectId); } // best-effort
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#0b0b12] to-[#0f0f1a] text-white">
@@ -886,6 +1119,11 @@ export default function WebtoonBuilder() {
                       const panelKey = getPanelKey(scene, i);
                       // Drop local history for this panel immediately
                       removeHistoryForPanel(panelKey);
+
+                      try {
+                        const projectId = sessionStorage.getItem('currentProjectId') || '';
+                        if (projectId) await idbDeletePanel(projectId, panelKey);
+                      } catch {}
                     
                       const parsed = Number(String(scene?.id || '').split('_')[1]);
                       const sceneNo = Number.isFinite(scene?.sceneNo) ? Number(scene.sceneNo) : (Number.isFinite(parsed) ? parsed : (i + 1));
@@ -1245,6 +1483,10 @@ export default function WebtoonBuilder() {
                   a.click();
                   a.remove();
                   URL.revokeObjectURL(url);
+                  try {
+                    const projectId = sessionStorage.getItem('currentProjectId') || '';
+                    if (projectId) await idbDeleteProject(projectId);
+                  } catch {}
                   // Cleanup blob URLs used for sources
                   blobUrls.forEach((u) => URL.revokeObjectURL(u));
                 } catch (e) {
