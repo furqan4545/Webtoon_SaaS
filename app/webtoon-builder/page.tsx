@@ -1035,27 +1035,59 @@ export default function WebtoonBuilder() {
     try {
       const projectId = sessionStorage.getItem('currentProjectId');
       if (!projectId) return;
+  
       const scene = scenes[index];
+      if (!scene?.imageDataUrl) return;
+  
       const panelKey = getPanelKey(scene, index);
       const sceneNo = getSceneNoForIndex(scene, index);
-      const img = scene?.imageDataUrl;
-      if (!img) return;
+      const img = scene.imageDataUrl;
   
+      // Spinner for this panel
       setSavingSceneNos(prev => prev.includes(panelKey) ? prev : [...prev, panelKey]);
   
+      // Tell backend to overwrite existing file + update row(s).
+      // (If your API already does this by default, these flags are harmless.)
       const res = await fetch('/api/save-scene-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, sceneNo, imageDataUrl: img })
+        body: JSON.stringify({
+          projectId,
+          sceneNo,
+          imageDataUrl: img,
+          overwrite: true,
+          updateTable: true
+        })
       });
-      await res.json().catch(() => ({}));
-    } catch {}
-    finally {
+  
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) throw new Error(data?.error || 'Failed to save image');
+  
+      // Prefer the canonical saved URL if your API returns it
+      const canonicalUrl: string | undefined =
+        data.signedUrl || data.publicUrl || data.image || undefined;
+  
+      if (canonicalUrl) {
+        setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: canonicalUrl } : s));
+      }
+  
+      // 1) Clear in-memory history for this panel (hides Undo/Redo/Save immediately)
+      removeHistoryForPanel(panelKey);
+  
+      // 2) Clear persisted history for this panel in IndexedDB
+      try { await idbDeletePanel(projectId, panelKey); } catch {}
+  
+      // (Optional) small chat toast
+      setChatMessages(prev => [...prev, { role: 'assistant', text: 'Saved.' }]);
+    } catch (err) {
+      console.error('save scene error', err);
+    } finally {
+      // Clear spinner
       const scene = scenes[index];
-      const panelKey = getPanelKey(scene, index);
-      setSavingSceneNos(prev => prev.filter(k => k !== panelKey));
-      // After a successful save, suppress Save until next undo
-      setSaveSuppressedByScene(m => ({ ...m, [panelKey]: true }));
+      if (scene) {
+        const panelKey = getPanelKey(scene, index);
+        setSavingSceneNos(prev => prev.filter(k => k !== panelKey));
+      }
     }
   };
 
