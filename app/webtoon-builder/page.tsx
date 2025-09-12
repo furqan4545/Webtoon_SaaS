@@ -313,6 +313,17 @@ export default function WebtoonBuilder() {
     return String(id);
   };
 
+  // Return the snapshot the user is currently seeing for this panel
+  const getCurrentSnapshotForPanel = (panelKey: string, scene: SceneItem | undefined): string | undefined => {
+    const entry = historyByScene[panelKey];
+    if (entry && entry.images?.length) {
+      const idx = Math.max(0, Math.min(entry.index ?? 0, entry.images.length - 1));
+      return entry.images[idx];
+    }
+    // fall back to what's on the scene (may be data URL or remote URL)
+    return scene?.imageDataUrl || undefined;
+  };
+
   // Immutable snapshot helpers for history (avoid remote URLs that get overwritten)
   // const isDataUrl = (s?: string) => !!s && /^data:image\//i.test(s);
   const isDataUrl = (s?: string) => !!s && /^data:image\//i.test(s || '');
@@ -404,8 +415,8 @@ export default function WebtoonBuilder() {
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true, generationPhase: 'image' } : s));
   
     // Capture “before” image ONCE (the currently visible image BEFORE generating)
-    const beforeImage = scenes[index]?.imageDataUrl;
     const panelKey = getPanelKey(scenes[index], index);
+    const beforeImage = getCurrentSnapshotForPanel(panelKey, scenes[index]);
   
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
@@ -838,8 +849,9 @@ export default function WebtoonBuilder() {
   
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
   
-    const beforeImage = scenes[index]?.imageDataUrl;
     const panelKey = getPanelKey(scene, index);
+    const beforeImage = getCurrentSnapshotForPanel(panelKey, scene);
+
   
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
@@ -876,8 +888,8 @@ export default function WebtoonBuilder() {
   
     setScenes(prev => prev.map((s, i) => i === index ? { ...s, isGenerating: true } : s));
   
-    const beforeImage = scenes[index]?.imageDataUrl;
     const panelKey = getPanelKey(scene, index);
+    const beforeImage = getCurrentSnapshotForPanel(panelKey, scene);
   
     try {
       const projectId = typeof window === 'undefined' ? null : sessionStorage.getItem('currentProjectId');
