@@ -17,6 +17,7 @@ type Project = {
   chapters: number;
   modifiedAt: string; // ISO date
   coverUrl?: string;
+  steps?: number;
 };
 
 const supabase = createClient();
@@ -79,7 +80,7 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
   useEffect(() => {
     if (initialProjects.length > 0) return;
     const load = async () => {
-      const { data, error } = await supabase.from('projects').select('*').order('updated_at', { ascending: false });
+      const { data, error } = await supabase.from('projects').select('id,title,status,updated_at,steps').order('updated_at', { ascending: false });
       if (!error && data) {
         setProjects(data.map((p: any) => ({
           id: p.id,
@@ -87,6 +88,7 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
           status: p.status as ProjectStatus,
           chapters: 0,
           modifiedAt: p.updated_at,
+          steps: typeof p.steps === 'number' ? p.steps : 0,
         })));
       }
     };
@@ -263,7 +265,10 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
               className="group border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden hover:bg-white/10 transition-colors cursor-pointer"
               onClick={() => {
                 try { sessionStorage.setItem('currentProjectId', p.id); } catch {}
-                router.push('/dashboard');
+                const step = typeof p.steps === 'number' ? p.steps : 0;
+                const routeByStep = ['/import-story','/choose-art-style','/analyzing-story','/generate-characters','/webtoon-builder'];
+                const target = routeByStep[Math.max(0, Math.min(4, step))] || '/dashboard';
+                router.push(target);
               }}
             >
               <div className={`relative h-40 ${pickGradient(p.id)} border-b border-white/10`} />

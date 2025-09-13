@@ -12,7 +12,7 @@ export default async function Home() {
   // Server-side fetch to avoid initial client fetch and reduce re-renders
   const { data: projects, error } = await supabase
     .from('projects')
-    .select('id,title,status,updated_at')
+    .select('id,title,status,updated_at,steps')
     .eq('user_id', data.user.id)
     .order('updated_at', { ascending: false });
 
@@ -22,6 +22,7 @@ export default async function Home() {
     status: p.status,
     chapters: 0,
     modifiedAt: p.updated_at,
+    steps: typeof p.steps === 'number' ? p.steps : 0,
   }));
 
   return <HomeDashboardClient initialProjects={initialProjects} />;
