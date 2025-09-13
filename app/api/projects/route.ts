@@ -54,6 +54,13 @@ export async function PATCH(request: NextRequest) {
   if (body?.status) updates.status = String(body.status);
   if (body?.story !== undefined) updates.story = String(body.story);
   if (body?.art_style !== undefined) updates.art_style = String(body.art_style);
+  if (body?.steps !== undefined || body?.step !== undefined) {
+    const s = Number(body?.steps ?? body?.step);
+    if (Number.isFinite(s)) {
+      // Clamp to 0..4 since we have 5 steps
+      updates.steps = Math.max(0, Math.min(4, Math.trunc(s)));
+    }
+  }
   updates.updated_at = new Date().toISOString();
   const { data, error } = await supabase
     .from('projects')
