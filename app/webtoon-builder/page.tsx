@@ -214,6 +214,7 @@ export default function WebtoonBuilder() {
   const [refImages, setRefImages] = useState<Array<{ name: string; dataUrl: string }>>([]);
   const [isFirstLoad, setIsFirstLoad] = useState<boolean>(true);
   const [credits, setCredits] = useState<{ remaining: number; resetsAt?: string } | null>(null);
+  const [isWatermarkRequired, setIsWatermarkRequired] = useState<boolean>(false);
   const [blockingFirstPanel, setBlockingFirstPanel] = useState<boolean>(false);
   const [deletingSceneNos, setDeletingSceneNos] = useState<number[]>([]);
   const deleteQueueProcessingRef = useRef<boolean>(false); // legacy; not used with new approach
@@ -822,6 +823,7 @@ export default function WebtoonBuilder() {
           .select('plan, month_start, monthly_base_limit, monthly_bonus_credits, monthly_used')
           .single();
         const plan = (prof as any)?.plan || 'free';
+        setIsWatermarkRequired(!(plan === 'pro' || plan === 'enterprise'));
         const now = new Date();
         const start = (prof as any)?.month_start ? new Date(String((prof as any).month_start)) : null;
         const monthIsCurrent = !!start && start.getUTCFullYear() === now.getUTCFullYear() && start.getUTCMonth() === now.getUTCMonth();
@@ -1325,7 +1327,7 @@ export default function WebtoonBuilder() {
                             : base;
 
                           return scene.imageDataUrl ? (
-                            <div className="mt-4 flex flex-col items-center">
+                            <div className="mt-4 flex flex-col items-center relative">
                               <img
                                 key={`img-${panelKey}-${retry}`}         // remounts on retry
                                 src={src}
@@ -1348,6 +1350,16 @@ export default function WebtoonBuilder() {
                                 }}
                                 className="max-w-[480px] w-full rounded-md border border-white/10"
                               />
+
+                              {isWatermarkRequired && (
+                                <div
+                                  aria-hidden
+                                  className="pointer-events-none select-none absolute bottom-2 right-3 text-black/40 font-semibold"
+                                  style={{ fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif' }}
+                                >
+                                  webtoon.ai
+                                </div>
+                              )}
 
                               {(retry >= 2 && !isDataUrl(base)) && (
                                 <button
@@ -1564,6 +1576,28 @@ export default function WebtoonBuilder() {
                     const h = img.naturalHeight || img.height;
                     const x = Math.floor((canvas.width - w) / 2);
                     ctx.drawImage(img, x, y, w, h);
+
+                    // Per-image watermark (free plan only)
+                    try {
+                      const { data: prof } = await supabase
+                        .from('profiles')
+                        .select('plan')
+                        .single();
+                      const plan = (prof as any)?.plan || 'free';
+                      if (!(plan === 'pro' || plan === 'enterprise')) {
+                        const margin = 16;
+                        const wmWidth = Math.max(80, Math.round(w * 0.2));
+                        const fontPx = Math.max(14, Math.round(wmWidth / 4));
+                        ctx.save();
+                        ctx.globalAlpha = 0.4;
+                        ctx.fillStyle = '#000000';
+                        ctx.font = `700 ${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`;
+                        ctx.textAlign = 'right';
+                        ctx.textBaseline = 'alphabetic';
+                        ctx.fillText('webtoon.ai', x + w - margin, y + h - margin);
+                        ctx.restore();
+                      }
+                    } catch {}
                     y += h + panelGap;
                   }
 
