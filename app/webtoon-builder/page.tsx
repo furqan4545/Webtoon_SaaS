@@ -1354,8 +1354,11 @@ export default function WebtoonBuilder() {
                               {isWatermarkRequired && (
                                 <div
                                   aria-hidden
-                                  className="pointer-events-none select-none absolute bottom-2 right-3 text-black/40 font-semibold"
-                                  style={{ fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif' }}
+                                  className="pointer-events-none select-none absolute bottom-3 right-4 text-transparent bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text font-bold text-lg"
+                                  style={{ 
+                                    fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
+                                    textShadow: '0 0 8px rgba(0,0,0,0.3)'
+                                  }}
                                 >
                                   webtoon.ai
                                 </div>
@@ -1585,13 +1588,18 @@ export default function WebtoonBuilder() {
                         .single();
                       const plan = (prof as any)?.plan || 'free';
                       if (!(plan === 'pro' || plan === 'enterprise')) {
-                        const margin = 16;
-                        const wmWidth = Math.max(80, Math.round(w * 0.2));
-                        const fontPx = Math.max(14, Math.round(wmWidth / 4));
+                        const margin = 20;
+                        const fontPx = Math.max(18, Math.round(w * 0.05));
                         ctx.save();
-                        ctx.globalAlpha = 0.4;
-                        ctx.fillStyle = '#000000';
-                        ctx.font = `700 ${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`;
+                        ctx.globalAlpha = 0.7;
+                        
+                        // Create purple gradient
+                        const gradient = ctx.createLinearGradient(x + w - 120, y + h - 40, x + w - 20, y + h - 20);
+                        gradient.addColorStop(0, '#8b5cf6'); // purple-500
+                        gradient.addColorStop(1, '#ec4899'); // pink-500
+                        
+                        ctx.fillStyle = gradient;
+                        ctx.font = `bold ${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`;
                         ctx.textAlign = 'right';
                         ctx.textBaseline = 'alphabetic';
                         ctx.fillText('webtoon.ai', x + w - margin, y + h - margin);
