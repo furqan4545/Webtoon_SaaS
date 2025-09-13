@@ -14,7 +14,6 @@ type Project = {
   id: string;
   title: string;
   status: ProjectStatus;
-  chapters: number;
   modifiedAt: string; // ISO date
   coverUrl?: string;
   steps?: number;
@@ -86,7 +85,6 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
           id: p.id,
           title: p.title,
           status: p.status as ProjectStatus,
-          chapters: 0,
           modifiedAt: p.updated_at,
           steps: typeof p.steps === 'number' ? p.steps : 0,
         })));
@@ -138,12 +136,12 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
   };
 
   const createProject = async () => {
-    const title = `Untitled Webtoon ${projects.length + 1}`;
+    const title = `Webtoon Project`;
     const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) });
     const json = await res.json();
     if (res.ok) {
       const p = json.project;
-      setProjects(prev => [{ id: p.id, title: p.title, status: p.status, chapters: 0, modifiedAt: p.updated_at }, ...prev]);
+      setProjects(prev => [{ id: p.id, title: p.title, status: p.status, modifiedAt: p.updated_at, steps: p.steps }, ...prev]);
     }
   };
 
@@ -192,7 +190,7 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
                   const res = await fetch('/api/projects', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: 'Untitled Webtoon' }),
+                    body: JSON.stringify({ title: 'Webtoon Project' }),
                   });
                   if (res.ok) {
                     const { project } = await res.json();
@@ -289,7 +287,6 @@ export default function HomeDashboardClient({ initialProjects = [] }: HomeDashbo
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-white/10">unpublished</span>
-                    <span>{p.chapters} chapters</span>
                   </div>
                   <span className="text-xs">Modified: {new Date(p.modifiedAt).toLocaleDateString()}</span>
                 </div>

@@ -34,13 +34,15 @@ const artStyles = [
 ];
 
 export default function ChooseArtStyle() {
-  const [styleText, setStyleText] = useState<string>("");
+  const [styleText, setStyleText] = useState<string>(artStyles[0].description);
   const [charCount, setCharCount] = useState(0);
-  const [selectedStyleId, setSelectedStyleId] = useState<string>('custom');
+  const [selectedStyleId, setSelectedStyleId] = useState<string>('webtoon');
   const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
+    // Initialize char count for default text
+    setCharCount(artStyles[0].description.length);
     // Load any existing saved art style from DB (optional prefill)
     (async () => {
       try {
@@ -52,6 +54,7 @@ export default function ChooseArtStyle() {
         if (pre) {
           setStyleText(pre);
           setCharCount(pre.length);
+          setSelectedStyleId('custom');
         }
       } catch {}
     })();
@@ -130,27 +133,8 @@ export default function ChooseArtStyle() {
 
         <StepBar currentStep={2} className="mb-6" />
 
-        {/* Top description card */}
+        {/* Re-ordered: Quick Style Options first */}
         <div className="space-y-8">
-          <Card className="border-white/10 bg-white/5 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-8 w-8 rounded-full bg-fuchsia-500/20 flex items-center justify-center">🎨</div>
-                <div>
-                  <div className="text-lg font-semibold">Describe Your Art Style</div>
-                  <div className="text-white/70 text-sm">Tell us how you want your webtoon to look</div>
-                </div>
-              </div>
-              <Textarea
-                placeholder={"Describe your desired art style in detail...\n\nExamples:\n• Korean webtoon style with clean lines, soft shading, and vibrant colors\n• Dark gothic style with dramatic shadows and muted color palette\n• Watercolor style with soft edges and pastel colors\n• Pixel art style reminiscent of 16-bit video games\n• Minimalist line art with bold geometric shapes\n• Studio Ghibli inspired with lush backgrounds and expressive characters"}
-                value={styleText}
-                onChange={(e) => handleTextChange(e.target.value)}
-                className="h-48 bg-black/20 border-white/10 text-white placeholder:text-white/50"
-              />
-              <div className="mt-2 text-xs text-white/60">{charCount} characters</div>
-            </CardContent>
-          </Card>
-
           {/* Quick Style Options */}
           <div>
             <h2 className="text-xl font-semibold mb-4 text-white">Quick Style Options</h2>
@@ -192,6 +176,26 @@ export default function ChooseArtStyle() {
               })}
             </div>
           </div>
+
+          {/* Description input below presets */}
+          <Card className="border-white/10 bg-white/5 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-8 w-8 rounded-full bg-fuchsia-500/20 flex items-center justify-center">🎨</div>
+                <div>
+                  <div className="text-lg font-semibold">Describe Your Art Style</div>
+                  <div className="text-white/70 text-sm">Tell us how you want your webtoon to look</div>
+                </div>
+              </div>
+              <Textarea
+                placeholder={"Describe your desired art style in detail..."}
+                value={styleText}
+                onChange={(e) => handleTextChange(e.target.value)}
+                className="h-48 bg-black/20 border-white/10 text-white placeholder:text-white/50"
+              />
+              <div className="mt-2 text-xs text-white/60">{charCount} characters</div>
+            </CardContent>
+          </Card>
 
           {/* Action Buttons */}
           <div className="flex gap-4 pt-4">

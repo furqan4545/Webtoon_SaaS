@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const body = await request.json();
-  const title = String(body?.title || 'Untitled Webtoon');
+  const title = String(body?.title || 'Webtoon Project');
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('projects')

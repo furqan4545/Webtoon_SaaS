@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
               const nowIso = new Date().toISOString();
               const { data: created } = await supabase
                 .from('projects')
-                .insert([{ user_id: user.id, title: 'Project 1', status: 'draft', created_at: nowIso, updated_at: nowIso }])
+                .insert([{ user_id: user.id, title: 'Webtoon Project', status: 'draft', steps: 0, created_at: nowIso, updated_at: nowIso }])
                 .select('id')
                 .single();
               if (created?.id) {
