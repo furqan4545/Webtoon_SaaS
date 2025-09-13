@@ -1354,7 +1354,7 @@ export default function WebtoonBuilder() {
                               {isWatermarkRequired && (
                                 <div
                                   aria-hidden
-                                  className="pointer-events-none select-none absolute bottom-3 right-4 text-transparent bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text font-bold text-lg"
+                                  className="pointer-events-none select-none absolute bottom-3 left-1/2 transform -translate-x-1/2 text-transparent bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text font-bold text-lg"
                                   style={{ 
                                     fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif',
                                     textShadow: '0 0 8px rgba(0,0,0,0.3)'
@@ -1594,15 +1594,15 @@ export default function WebtoonBuilder() {
                         ctx.globalAlpha = 0.7;
                         
                         // Create purple gradient
-                        const gradient = ctx.createLinearGradient(x + w - 120, y + h - 40, x + w - 20, y + h - 20);
+                        const gradient = ctx.createLinearGradient(x + w/2 - 60, y + h - 40, x + w/2 + 60, y + h - 20);
                         gradient.addColorStop(0, '#8b5cf6'); // purple-500
                         gradient.addColorStop(1, '#ec4899'); // pink-500
                         
                         ctx.fillStyle = gradient;
                         ctx.font = `bold ${fontPx}px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`;
-                        ctx.textAlign = 'right';
+                        ctx.textAlign = 'center';
                         ctx.textBaseline = 'alphabetic';
-                        ctx.fillText('webtoon.ai', x + w - margin, y + h - margin);
+                        ctx.fillText('webtoon.ai', x + w/2, y + h - margin);
                         ctx.restore();
                       }
                     } catch {}
