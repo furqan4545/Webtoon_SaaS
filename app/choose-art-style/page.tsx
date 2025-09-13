@@ -57,6 +57,17 @@ export default function ChooseArtStyle() {
     })();
   }, []);
 
+  // Save step index (1) when this page is active
+  useEffect(() => {
+    (async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        if (!projectId) return;
+        await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, steps: 1 }) });
+      } catch {}
+    })();
+  }, []);
+
   // Selecting a preset overrides the textarea content instead of appending
   const selectPreset = (id: string, text: string) => {
     setStyleText(text);

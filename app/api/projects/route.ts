@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('projects')
-    .insert([{ user_id: user.id, title, status: 'draft', created_at: now, updated_at: now }])
+    .insert([{ user_id: user.id, title, status: 'draft', steps: 0, created_at: now, updated_at: now }])
     .select('*')
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

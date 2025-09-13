@@ -13,6 +13,15 @@ export default function AnalyzingStory() {
   useEffect(() => {
     if (hasRun.current) return;
     hasRun.current = true;
+    // Save step index (2) when this page is active
+    (async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        if (projectId) {
+          await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, steps: 2 }) });
+        }
+      } catch {}
+    })();
     const analyzeStory = async () => {
       try {
         const projectId = sessionStorage.getItem('currentProjectId');

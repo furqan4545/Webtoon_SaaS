@@ -28,6 +28,7 @@ create table if not exists public.projects (
   user_id uuid not null references auth.users(id) on delete cascade,
   title text not null,
   status text not null default 'draft',
+  steps int not null default 0,
   story text,
   art_style text,
   created_at timestamptz default now(),
@@ -197,6 +198,7 @@ alter table if exists public.profiles add column if not exists email text;
 alter table if exists public.profiles add column if not exists full_name text;
 alter table if exists public.profiles add column if not exists avatar_url text;
 alter table if exists public.projects add column if not exists art_style text;
+alter table if exists public.projects add column if not exists steps int not null default 0;
 alter table if exists public.characters add column if not exists art_style text;
 
 -- Storage RLS policies for bucket 'webtoon'

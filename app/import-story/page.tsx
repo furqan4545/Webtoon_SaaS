@@ -41,6 +41,17 @@ export default function ImportStory() {
     } catch {}
   }, [router]);
 
+  // Save step index (0) when this page is active
+  useEffect(() => {
+    (async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        if (!projectId) return;
+        await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, steps: 0 }) });
+      } catch {}
+    })();
+  }, []);
+
   // Load story from DB for the current project only
   useEffect(() => {
     const load = async () => {

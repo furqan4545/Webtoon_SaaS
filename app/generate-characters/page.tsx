@@ -84,6 +84,15 @@ export default function GenerateCharacters() {
     };
 
     loadCharacters();
+    // Save step index (3) when this page is active
+    (async () => {
+      try {
+        const projectId = sessionStorage.getItem('currentProjectId');
+        if (projectId) {
+          await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, steps: 3 }) });
+        }
+      } catch {}
+    })();
     // Load credits for UI guard via Supabase profile
     (async () => {
       try {

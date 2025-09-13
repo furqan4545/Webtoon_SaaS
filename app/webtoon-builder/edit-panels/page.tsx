@@ -65,6 +65,10 @@ export default function EditPanelsPage() {
           setLoading(false);
           return;
         }
+        // Save step index (4) when this page is active
+        try {
+          await fetch('/api/projects', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: projectId, steps: 4 }) });
+        } catch {}
         // Fetch ordered generated scene images for this project
         const { data, error } = await supabase
           .from('generated_scene_images')
