@@ -47,16 +47,27 @@ export async function POST(request: NextRequest) {
             plan: planType === 'pro' ? 'pro' : 'enterprise',
             monthly_base_limit: credits === 'unlimited' ? 999999 : parseInt(credits),
             monthly_used: 0, // Reset usage
-            month_start: new Date().toISOString(), // Reset monthly cycle
+            monthly_bonus_credits: 0, // Reset bonus credits
+            lifetime_credits_purchased: credits === 'unlimited' ? 999999 : parseInt(credits), // Track purchase
+            month_start: new Date().toISOString().split('T')[0], // Reset monthly cycle (date only)
           })
           .eq('user_id', userId);
 
         if (updateError) {
           console.error('Error updating user profile:', updateError);
+          console.error('Update data:', {
+            plan: planType === 'pro' ? 'pro' : 'enterprise',
+            monthly_base_limit: credits === 'unlimited' ? 999999 : parseInt(credits),
+            monthly_used: 0,
+            monthly_bonus_credits: 0,
+            lifetime_credits_purchased: credits === 'unlimited' ? 999999 : parseInt(credits),
+            month_start: new Date().toISOString().split('T')[0],
+            userId
+          });
           return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
         }
 
-        console.log(`Updated user ${userId} to ${planType} plan with ${credits} credits`);
+        console.log(`✅ Updated user ${userId} to ${planType} plan with ${credits} credits`);
         break;
       }
 
