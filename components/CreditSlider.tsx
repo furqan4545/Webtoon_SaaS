@@ -72,7 +72,7 @@ export default function CreditSlider({
   const percentage = ((value - min) / (max - min)) * 100;
 
   return (
-    <div className={`space-y-6 ${className}`}>
+    <div className={`space-y-4 ${className}`}>
       {/* Slider Track */}
       <div className="px-1">
         <div

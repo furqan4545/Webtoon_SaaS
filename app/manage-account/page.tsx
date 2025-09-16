@@ -219,7 +219,7 @@ export default function ManageAccountPage() {
               </div>
             </CardHeader>
 
-            <CardContent className="flex flex-col flex-1">
+            <CardContent className="flex flex-col flex-1 mt-8">
               <div className="flex-1">
                 <h3 className="text-white font-semibold mb-4 text-sm uppercase tracking-wide">
                   Features Included:
