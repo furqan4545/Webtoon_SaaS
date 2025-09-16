@@ -40,18 +40,46 @@ export async function POST(request: NextRequest) {
         // Update user's plan and credits in Supabase
         const supabase = createClient();
         
-        // Update the user's profile with new plan and credits
-        const { error: updateError } = await supabase
+        // First, check if user profile exists
+        const { data: existingProfile, error: fetchError } = await supabase
           .from('profiles')
-          .update({
-            plan: planType === 'pro' ? 'pro' : 'enterprise',
-            monthly_base_limit: credits === 'unlimited' ? 999999 : parseInt(credits),
-            monthly_used: 0, // Reset usage
-            monthly_bonus_credits: 0, // Reset bonus credits
-            lifetime_credits_purchased: credits === 'unlimited' ? 999999 : parseInt(credits), // Track purchase
-            month_start: new Date().toISOString().split('T')[0], // Reset monthly cycle (date only)
-          })
-          .eq('user_id', userId);
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+          
+        console.log('🔍 Existing profile:', existingProfile);
+        console.log('🔍 Fetch error:', fetchError);
+        
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          console.error('❌ Error fetching user profile:', fetchError);
+          return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
+        }
+        
+        // Update the user's profile with new plan and credits
+        console.log('🔍 DEBUG: About to update user profile');
+        console.log('🔍 User ID:', userId);
+        console.log('🔍 Plan Type:', planType);
+        console.log('🔍 Credits:', credits);
+        
+        const updateData = {
+          plan: planType === 'pro' ? 'pro' : 'enterprise',
+          monthly_base_limit: credits === 'unlimited' ? 999999 : parseInt(credits),
+          monthly_used: 0,
+          monthly_bonus_credits: 0,
+          lifetime_credits_purchased: credits === 'unlimited' ? 999999 : parseInt(credits),
+          month_start: new Date().toISOString().split('T')[0],
+        };
+        
+        console.log('🔍 Update data:', updateData);
+        
+        const { data: updateResult, error: updateError } = await supabase
+          .from('profiles')
+          .update(updateData)
+          .eq('user_id', userId)
+          .select();
+          
+        console.log('🔍 Update result:', updateResult);
+        console.log('🔍 Update error:', updateError);
 
         if (updateError) {
           console.error('Error updating user profile:', updateError);
