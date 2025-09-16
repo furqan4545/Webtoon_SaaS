@@ -44,7 +44,11 @@ export default function CreditSlider({
     const rect = sliderRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, x / rect.width));
-    const newValue = Math.round(min + percentage * (max - min));
+    
+    // Calculate which plan segment the mouse is in
+    const segmentWidth = 1 / (max - min);
+    const segmentIndex = Math.floor(percentage / segmentWidth);
+    const newValue = Math.min(max, Math.max(min, segmentIndex));
     
     if (newValue !== value) {
       onChange(newValue);
@@ -97,28 +101,35 @@ export default function CreditSlider({
         </div>
       </div>
 
-      {/* Price Indicators */}
-      <div className="flex justify-between text-xs text-white/60 px-1">
-        {plans.map((plan, index) => (
-          <div key={index} className="text-center flex-1 relative">
+      {/* Price Indicators - Perfectly aligned with slider positions */}
+      <div className="relative px-1">
+        {plans.map((plan, index) => {
+          const position = (index / (plans.length - 1)) * 100;
+          return (
             <div 
-              className={`w-3 h-3 rounded-full mx-auto mb-2 transition-all duration-200 cursor-pointer ${
-                index === value 
-                  ? 'bg-fuchsia-500 scale-110 shadow-lg shadow-fuchsia-500/30' 
-                  : 'bg-white/40 hover:bg-white/60'
-              }`}
-              onClick={() => onChange(index)}
-            />
-            <div 
-              className={`text-xs font-medium transition-colors duration-200 cursor-pointer ${
-                index === value ? 'text-fuchsia-400' : 'text-white/60'
-              }`}
-              onClick={() => onChange(index)}
+              key={index} 
+              className="absolute text-center transform -translate-x-1/2"
+              style={{ left: `${position}%` }}
             >
-              ${plan.price}
+              <div 
+                className={`w-3 h-3 rounded-full mx-auto mb-2 transition-all duration-200 cursor-pointer ${
+                  index === value 
+                    ? 'bg-fuchsia-500 scale-110 shadow-lg shadow-fuchsia-500/30' 
+                    : 'bg-white/40 hover:bg-white/60'
+                }`}
+                onClick={() => onChange(index)}
+              />
+              <div 
+                className={`text-xs font-medium transition-colors duration-200 cursor-pointer whitespace-nowrap ${
+                  index === value ? 'text-fuchsia-400' : 'text-white/60'
+                }`}
+                onClick={() => onChange(index)}
+              >
+                ${plan.price}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
