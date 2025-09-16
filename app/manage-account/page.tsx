@@ -12,8 +12,8 @@ import { toast } from "sonner";
 const PRO_PLANS = [
   { price: 25, credits: 100, label: "Starter" },
   { price: 75, credits: 300, label: "Creator" },
-  { price: 199, credits: 800, label: "Professional" },
-  { price: 349, credits: 1500, label: "Studio" },
+  { price: 199, credits: 1000, label: "Professional" },
+  { price: 349, credits: 2000, label: "Studio" },
 ];
 
 const PRO_FEATURES = [
@@ -240,17 +240,21 @@ export default function ManageAccountPage() {
               {/* Credit Slider */}
               <div className="mt-6 space-y-4">
                 <div className="px-1">
-                  <Slider
-                    value={selectedPlanIndex}
-                    onChange={handleSliderChange}
-                    min={0}
-                    max={PRO_PLANS.length - 1}
-                    step={1}
+                  <div
                     className="w-full h-2 bg-white/20 rounded-full appearance-none cursor-pointer slider-thumb"
                     style={{
                       background: `linear-gradient(to right, #d946ef 0%, #d946ef ${(selectedPlanIndex / (PRO_PLANS.length - 1)) * 100}%, rgba(255,255,255,0.2) ${(selectedPlanIndex / (PRO_PLANS.length - 1)) * 100}%, rgba(255,255,255,0.2) 100%)`
                     }}
-                  />
+                  >
+                    <Slider
+                      value={selectedPlanIndex}
+                      onChange={handleSliderChange}
+                      min={0}
+                      max={PRO_PLANS.length - 1}
+                      step={1}
+                      className="w-full h-full"
+                    />
+                  </div>
                 </div>
                 <div className="flex justify-between text-xs text-white/60 px-1">
                   {PRO_PLANS.map((plan, index) => (

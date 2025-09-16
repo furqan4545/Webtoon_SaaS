@@ -40,23 +40,54 @@ export async function POST(request: NextRequest) {
         // Update user's plan and credits in Supabase using service role (bypasses RLS)
         const supabase = createServiceClient();
         
-        // Use upsert to create or update the profile (like auth callbacks do)
+        // First, get the current profile to append credits
         console.log('🔍 DEBUG: About to update user profile');
         console.log('🔍 User ID:', userId);
         console.log('🔍 Plan Type:', planType);
         console.log('🔍 Credits:', credits);
         
+        const { data: currentProfile, error: fetchError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+          
+        console.log('🔍 Current profile:', currentProfile);
+        
+        // Calculate new values (ALWAYS increment credits, never replace)
+        const newCredits = credits === 'unlimited' ? 999999 : parseInt(credits);
+        const currentMonthlyLimit = currentProfile?.monthly_base_limit || 50;
+        const currentBonusCredits = currentProfile?.monthly_bonus_credits || 0;
+        const currentLifetimePurchased = currentProfile?.lifetime_credits_purchased || 0;
+        
+        // ALWAYS increment credits for any plan change (upgrade or downgrade)
+        // monthly_base_limit: Set to new plan's monthly credits
+        // monthly_bonus_credits: Add new credits as bonus (preserves existing bonus)
+        // lifetime_credits_purchased: Add new credits to lifetime total
+        const newMonthlyLimit = newCredits; // Set to new plan's monthly limit
+        const newBonusCredits = currentBonusCredits + newCredits; // Always add as bonus
+        const newLifetimePurchased = currentLifetimePurchased + newCredits; // Always increment lifetime
+        
         const upsertData = {
           user_id: userId,
           plan: planType === 'pro' ? 'pro' : 'enterprise',
-          monthly_base_limit: credits === 'unlimited' ? 999999 : parseInt(credits),
-          monthly_used: 0,
-          monthly_bonus_credits: 0,
-          lifetime_credits_purchased: credits === 'unlimited' ? 999999 : parseInt(credits),
-          month_start: new Date().toISOString().split('T')[0],
+          monthly_base_limit: newMonthlyLimit,
+          monthly_used: currentProfile?.monthly_used || 0, // Keep current usage
+          monthly_bonus_credits: newBonusCredits,
+          lifetime_credits_purchased: newLifetimePurchased,
+          month_start: currentProfile?.month_start || new Date().toISOString().split('T')[0],
         };
         
-        console.log('🔍 Upsert data:', upsertData);
+        console.log('🔍 Upsert data (appending credits):', upsertData);
+        console.log('🔍 Credit calculation:', {
+          newCredits,
+          currentMonthlyLimit,
+          currentBonusCredits,
+          currentLifetimePurchased,
+          newMonthlyLimit,
+          newBonusCredits,
+          newLifetimePurchased
+        });
         
         const { data: upsertResult, error: upsertError } = await supabase
           .from('profiles')
@@ -72,6 +103,7 @@ export async function POST(request: NextRequest) {
         }
 
         console.log(`✅ Upserted user ${userId} to ${planType} plan with ${credits} credits`);
+        console.log(`📅 Monthly deposit: User will receive ${newCredits} credits every month based on their ${planType} plan`);
         break;
       }
 

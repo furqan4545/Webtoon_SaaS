@@ -10,8 +10,8 @@ import { loadStripe } from '@stripe/stripe-js';
 const PRO_PLANS = [
   { price: 25, credits: 100, label: "Starter" },
   { price: 75, credits: 300, label: "Creator" },
-  { price: 199, credits: 800, label: "Professional" },
-  { price: 349, credits: 1500, label: "Studio" },
+  { price: 199, credits: 1000, label: "Professional" },
+  { price: 349, credits: 2000, label: "Studio" },
 ];
 
 const PRO_FEATURES = [
