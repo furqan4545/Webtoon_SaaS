@@ -39,11 +39,22 @@ export default function ManageAccountPage() {
   const [selectedPlanIndex, setSelectedPlanIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<string>('free');
+  const [currentPlanCredits, setCurrentPlanCredits] = useState<number>(50);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [showUnsubscribeConfirm, setShowUnsubscribeConfirm] = useState(false);
   const supabase = createClient();
   
   const selectedPlan = PRO_PLANS[selectedPlanIndex];
+
+  // Helper functions to check if plan is different
+  const isProPlanDifferent = () => {
+    if (currentPlan !== 'pro') return true; // If not on PRO, any PRO selection is different
+    return selectedPlan.credits !== currentPlanCredits; // If on PRO, check if credits are different
+  };
+
+  const isEnterprisePlanDifferent = () => {
+    return currentPlan !== 'enterprise'; // Enterprise is different if not currently on enterprise
+  };
 
   useEffect(() => {
     const loadUserProfile = async () => {
@@ -58,6 +69,7 @@ export default function ManageAccountPage() {
           
           if (profile) {
             setCurrentPlan(profile.plan || 'free');
+            setCurrentPlanCredits(profile.monthly_base_limit || 50);
             
             // Set slider to current plan if it's a PRO plan
             if (profile.plan === 'pro') {
@@ -276,7 +288,7 @@ export default function ManageAccountPage() {
               
               <Button
                 onClick={() => handlePlanUpdate('pro')}
-                disabled={isLoading || currentPlan === 'pro'}
+                disabled={isLoading || !isProPlanDifferent()}
                 className="w-full h-12 bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-400 hover:to-indigo-400 text-white font-medium rounded-lg disabled:opacity-50 mt-6"
               >
                 {isLoading ? (
@@ -284,7 +296,7 @@ export default function ManageAccountPage() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
                   </>
-                ) : currentPlan === 'pro' ? (
+                ) : !isProPlanDifferent() ? (
                   'Current Plan'
                 ) : (
                   'Update to Pro'
@@ -337,7 +349,7 @@ export default function ManageAccountPage() {
               
               <Button
                 onClick={() => handlePlanUpdate('enterprise')}
-                disabled={isLoading || currentPlan === 'enterprise'}
+                disabled={isLoading || !isEnterprisePlanDifferent()}
                 className="w-full h-12 bg-gradient-to-r from-fuchsia-500 to-indigo-500 hover:from-fuchsia-400 hover:to-indigo-400 text-white font-medium rounded-lg disabled:opacity-50 mt-6"
               >
                 {isLoading ? (
@@ -345,7 +357,7 @@ export default function ManageAccountPage() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
                   </>
-                ) : currentPlan === 'enterprise' ? (
+                ) : !isEnterprisePlanDifferent() ? (
                   'Current Plan'
                 ) : (
                   'Update to Enterprise'
