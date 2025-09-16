@@ -25,6 +25,13 @@ create policy "profiles_self_access"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- Service role policy for webhooks (bypasses RLS)
+drop policy if exists "profiles_service_role" on public.profiles;
+create policy "profiles_service_role"
+  on public.profiles for all
+  using (auth.role() = 'service_role')
+  with check (auth.role() = 'service_role');
+
 -- PROJECTS
 create table if not exists public.projects (
   id uuid primary key default gen_random_uuid(),

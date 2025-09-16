@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { createClient } from '@/utils/supabase/server';
+import { createServiceClient } from '@/utils/supabase/server';
 import Stripe from 'stripe';
 
 export async function POST(request: NextRequest) {
@@ -37,8 +37,8 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Missing metadata' }, { status: 400 });
         }
 
-        // Update user's plan and credits in Supabase
-        const supabase = createClient();
+        // Update user's plan and credits in Supabase using service role (bypasses RLS)
+        const supabase = createServiceClient();
         
         // Use upsert to create or update the profile (like auth callbacks do)
         console.log('🔍 DEBUG: About to update user profile');
@@ -89,11 +89,12 @@ export async function POST(request: NextRequest) {
         const customerId = subscription.customer as string;
         
         // Handle subscription cancellation - downgrade to free plan
-        const supabase = createClient();
+        const supabase = createServiceClient();
         
-        // Find user by customer ID (you might need to store this mapping)
-        // For now, we'll need to add customer_id to profiles table
-        console.log('Subscription cancelled:', subscription.id);
+        // TODO: We need to store customer_id in profiles table to map back to user
+        // For now, just log the cancellation
+        console.log('Subscription cancelled:', subscription.id, 'Customer:', customerId);
+        console.log('⚠️ Need to implement customer_id mapping to downgrade user to free plan');
         break;
       }
 
