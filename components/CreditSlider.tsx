@@ -25,6 +25,7 @@ export default function CreditSlider({
   const sliderRef = useRef<HTMLDivElement>(null);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
     setIsDragging(true);
     updateValue(e);
   };
@@ -45,9 +46,10 @@ export default function CreditSlider({
     const x = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, x / rect.width));
     
-    // Calculate which plan segment the mouse is in
-    const segmentWidth = 1 / (max - min);
-    const segmentIndex = Math.floor(percentage / segmentWidth);
+    // Calculate which plan segment the mouse is closest to
+    const totalSegments = max - min;
+    const segmentWidth = 1 / totalSegments;
+    const segmentIndex = Math.round(percentage / segmentWidth);
     const newValue = Math.min(max, Math.max(min, segmentIndex));
     
     if (newValue !== value) {
@@ -70,13 +72,17 @@ export default function CreditSlider({
   const percentage = ((value - min) / (max - min)) * 100;
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={`space-y-6 ${className}`}>
       {/* Slider Track */}
       <div className="px-1">
         <div
           ref={sliderRef}
           className="relative w-full h-2 bg-white/20 rounded-full cursor-pointer group"
           onMouseDown={handleMouseDown}
+          onClick={(e) => {
+            e.stopPropagation();
+            updateValue(e);
+          }}
         >
           {/* Progress Fill */}
           <div
