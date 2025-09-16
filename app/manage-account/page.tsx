@@ -142,9 +142,22 @@ export default function ManageAccountPage() {
   const handleUnsubscribe = async () => {
     setIsLoading(true);
     try {
-      // TODO: Implement unsubscribe API call
+      const response = await fetch('/api/cancel-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel subscription');
+      }
+
       toast.success('Successfully unsubscribed! You have been moved to the free plan.');
       setCurrentPlan('free');
+      setCurrentPlanCredits(50);
       setShowUnsubscribeConfirm(false);
       
       // Refresh the page to update the UI
