@@ -223,6 +223,11 @@ export default function Header() {
               </DropdownMenuLabel>
               <div className="px-2 pb-1 text-sm text-white/70 truncate">{email ?? "—"}</div>
               <DropdownMenuSeparator className="bg-white/10" />
+              <DropdownMenuItem asChild>
+                <Link href="/manage-account" className="text-white focus:bg-white/10 focus:text-white">
+                  Manage Account
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={logout}
                 className="text-white focus:bg-white/10 focus:text-white"
