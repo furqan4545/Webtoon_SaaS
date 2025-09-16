@@ -105,6 +105,49 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId = invoice.customer as string;
+        
+        // This fires when Stripe successfully charges a customer (monthly billing)
+        console.log('✅ Monthly payment succeeded for customer:', customerId);
+        
+        // Find the user by customer email
+        const customer = await stripe.customers.retrieve(customerId);
+        if (customer.deleted) break;
+        
+        const customerEmail = (customer as Stripe.Customer).email;
+        if (!customerEmail) break;
+        
+        // Find user in Supabase by email
+        const supabase = createServiceClient();
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', customerEmail)
+          .single();
+          
+        if (profile && profile.plan !== 'free') {
+          // Add monthly credits based on their current plan
+          const monthlyCredits = profile.current_plan_credits || 0;
+          const newMonthlyLimit = (profile.monthly_base_limit || 0) + monthlyCredits;
+          const newLifetimePurchased = (profile.lifetime_credits_purchased || 0) + monthlyCredits;
+          
+          await supabase
+            .from('profiles')
+            .update({
+              monthly_base_limit: newMonthlyLimit,
+              lifetime_credits_purchased: newLifetimePurchased,
+              month_start: new Date().toISOString().split('T')[0],
+              monthly_used: 0, // Reset monthly usage
+            })
+            .eq('user_id', profile.user_id);
+            
+          console.log(`✅ Monthly credits deposited: ${monthlyCredits} credits for user ${profile.user_id}`);
+        }
+        break;
+      }
+
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
