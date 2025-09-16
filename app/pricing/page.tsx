@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Check, Loader2 } from "lucide-react";
@@ -38,8 +38,8 @@ export default function PricingPage() {
   const [isLoading, setIsLoading] = useState(false);
   const selectedPlan = PRO_PLANS[selectedPlanIndex];
 
-  const handleSliderChange = (value: number[]) => {
-    setSelectedPlanIndex(value[0]);
+  const handleSliderChange = (value: number) => {
+    setSelectedPlanIndex(value);
   };
 
   const handleProUpgrade = async () => {
@@ -116,9 +116,11 @@ export default function PricingPage() {
         <div className="grid md:grid-cols-2 gap-8 max-w-6xl mx-auto">
           {/* PRO Plan Card */}
           <Card className="bg-neutral-900/80 border-white/10 backdrop-blur-sm">
-            <CardHeader className="text-center pb-8">
-              <CardTitle className="text-3xl font-bold text-white mb-2">PRO</CardTitle>
-              <p className="text-white/70 text-sm">best for webtoon artists and creatives</p>
+            <CardHeader className="text-center">
+              <CardTitle className="text-3xl font-bold text-white">PRO</CardTitle>
+              <CardDescription className="text-white/70">
+                best for webtoon artists and creatives
+              </CardDescription>
               
               {/* Dynamic Pricing */}
               <div className="mt-6">
@@ -130,20 +132,23 @@ export default function PricingPage() {
               </div>
 
               {/* Credit Slider */}
-              <div className="mt-6 px-4">
-                <div className="mb-4">
+              <div className="mt-6 space-y-4">
+                <div className="px-4">
                   <Slider
-                    value={[selectedPlanIndex]}
-                    onValueChange={handleSliderChange}
+                    value={selectedPlanIndex}
+                    onChange={handleSliderChange}
+                    min={0}
                     max={PRO_PLANS.length - 1}
                     step={1}
                     className="w-full"
                   />
                 </div>
-                <div className="flex justify-between text-xs text-white/50">
+                <div className="flex justify-between text-xs text-white/50 px-4">
                   {PRO_PLANS.map((plan, index) => (
                     <div key={index} className="text-center">
-                      <div className="w-2 h-2 rounded-full bg-white/30 mx-auto mb-1"></div>
+                      <div className={`w-2 h-2 rounded-full mx-auto mb-1 ${
+                        index === selectedPlanIndex ? 'bg-fuchsia-500' : 'bg-white/30'
+                      }`}></div>
                       <div className="text-xs">${plan.price}</div>
                     </div>
                   ))}
@@ -185,9 +190,11 @@ export default function PricingPage() {
 
           {/* ENTERPRISE Plan Card */}
           <Card className="bg-neutral-900/80 border-white/10 backdrop-blur-sm">
-            <CardHeader className="text-center pb-8">
-              <CardTitle className="text-3xl font-bold text-white mb-2">ENTERPRISE</CardTitle>
-              <p className="text-white/70 text-sm">best for studios and high-volume webtoon artists</p>
+            <CardHeader className="text-center">
+              <CardTitle className="text-3xl font-bold text-white">ENTERPRISE</CardTitle>
+              <CardDescription className="text-white/70">
+                best for studios and high-volume webtoon artists
+              </CardDescription>
               
               <div className="mt-6">
                 <div className="text-4xl font-bold text-fuchsia-500 mb-2">
