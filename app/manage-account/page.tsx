@@ -3,11 +3,11 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import { Check, Loader2, AlertTriangle } from "lucide-react";
 import { loadStripe } from '@stripe/stripe-js';
 import { createClient } from "@/utils/supabase/client";
 import { toast } from "sonner";
+import CreditSlider from "@/components/CreditSlider";
 
 const PRO_PLANS = [
   { price: 25, credits: 100, label: "Starter" },
@@ -161,37 +161,6 @@ export default function ManageAccountPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-900 via-black to-neutral-900">
-      <style jsx global>{`
-        .slider-thumb::-webkit-slider-thumb {
-          appearance: none;
-          height: 20px;
-          width: 20px;
-          border-radius: 50%;
-          background: #d946ef;
-          cursor: pointer;
-          border: 3px solid #000;
-          box-shadow: 0 4px 12px rgba(217, 70, 239, 0.4);
-          transition: all 0.2s ease;
-        }
-        .slider-thumb::-webkit-slider-thumb:hover {
-          transform: scale(1.1);
-          box-shadow: 0 6px 16px rgba(217, 70, 239, 0.6);
-        }
-        .slider-thumb::-moz-range-thumb {
-          height: 20px;
-          width: 20px;
-          border-radius: 50%;
-          background: #d946ef;
-          cursor: pointer;
-          border: 3px solid #000;
-          box-shadow: 0 4px 12px rgba(217, 70, 239, 0.4);
-          transition: all 0.2s ease;
-        }
-        .slider-thumb::-moz-range-thumb:hover {
-          transform: scale(1.1);
-          box-shadow: 0 6px 16px rgba(217, 70, 239, 0.6);
-        }
-      `}</style>
       
       <div className="container mx-auto px-4 py-16">
         {/* Header */}
@@ -238,40 +207,15 @@ export default function ManageAccountPage() {
               </div>
 
               {/* Credit Slider */}
-              <div className="mt-6 space-y-4">
-                <div className="px-1">
-                  <div
-                    className="w-full h-2 bg-white/20 rounded-full appearance-none cursor-pointer slider-thumb"
-                    style={{
-                      background: `linear-gradient(to right, #d946ef 0%, #d946ef ${(selectedPlanIndex / (PRO_PLANS.length - 1)) * 100}%, rgba(255,255,255,0.2) ${(selectedPlanIndex / (PRO_PLANS.length - 1)) * 100}%, rgba(255,255,255,0.2) 100%)`
-                    }}
-                  >
-                    <Slider
-                      value={selectedPlanIndex}
-                      onChange={handleSliderChange}
-                      min={0}
-                      max={PRO_PLANS.length - 1}
-                      step={1}
-                      className="w-full h-full"
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-between text-xs text-white/60 px-1">
-                  {PRO_PLANS.map((plan, index) => (
-                    <div key={index} className="text-center flex-1 relative">
-                      <div className={`w-3 h-3 rounded-full mx-auto mb-2 transition-all duration-200 ${
-                        index === selectedPlanIndex 
-                          ? 'bg-fuchsia-500 scale-110 shadow-lg shadow-fuchsia-500/30' 
-                          : 'bg-white/40 hover:bg-white/60'
-                      }`}></div>
-                      <div className={`text-xs font-medium transition-colors duration-200 ${
-                        index === selectedPlanIndex ? 'text-fuchsia-400' : 'text-white/60'
-                      }`}>
-                        ${plan.price}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="mt-6">
+                <CreditSlider
+                  value={selectedPlanIndex}
+                  onChange={handleSliderChange}
+                  min={0}
+                  max={PRO_PLANS.length - 1}
+                  step={1}
+                  plans={PRO_PLANS}
+                />
               </div>
             </CardHeader>
 

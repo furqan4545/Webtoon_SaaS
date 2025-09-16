@@ -61,10 +61,10 @@ export async function POST(request: NextRequest) {
         const currentLifetimePurchased = currentProfile?.lifetime_credits_purchased || 0;
         
         // ALWAYS increment credits for any plan change (upgrade or downgrade)
-        // monthly_base_limit: Set to new plan's monthly credits
+        // monthly_base_limit: Add new plan's credits to existing monthly limit
         // monthly_bonus_credits: Add new credits as bonus (preserves existing bonus)
         // lifetime_credits_purchased: Add new credits to lifetime total
-        const newMonthlyLimit = newCredits; // Set to new plan's monthly limit
+        const newMonthlyLimit = currentMonthlyLimit + newCredits; // ALWAYS ADD to existing monthly limit
         const newBonusCredits = currentBonusCredits + newCredits; // Always add as bonus
         const newLifetimePurchased = currentLifetimePurchased + newCredits; // Always increment lifetime
         
@@ -79,14 +79,14 @@ export async function POST(request: NextRequest) {
         };
         
         console.log('🔍 Upsert data (appending credits):', upsertData);
-        console.log('🔍 Credit calculation:', {
+        console.log('🔍 Credit calculation (ALWAYS INCREMENT):', {
           newCredits,
           currentMonthlyLimit,
           currentBonusCredits,
           currentLifetimePurchased,
-          newMonthlyLimit,
-          newBonusCredits,
-          newLifetimePurchased
+          newMonthlyLimit: `${currentMonthlyLimit} + ${newCredits} = ${newMonthlyLimit}`,
+          newBonusCredits: `${currentBonusCredits} + ${newCredits} = ${newBonusCredits}`,
+          newLifetimePurchased: `${currentLifetimePurchased} + ${newCredits} = ${newLifetimePurchased}`
         });
         
         const { data: upsertResult, error: upsertError } = await supabase
