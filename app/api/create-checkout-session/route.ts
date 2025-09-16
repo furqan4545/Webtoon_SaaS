@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/dashboard?success=true&plan=${planType}`,
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/?upgraded=true&plan=${planType}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/pricing?canceled=true`,
       customer_email: user.email,
       metadata: {

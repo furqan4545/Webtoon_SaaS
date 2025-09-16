@@ -192,14 +192,16 @@ export default function Header() {
                   {isLoadingUsage ? 'Loading…' : `${usage?.remaining ?? 0} Credits left`}
                 </div>
               </div>
-              <Link href="/pricing" prefetch>
-                <Button
-                  className="h-9 rounded-full px-4 text-sm font-medium text-white bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-500 hover:from-rose-400 hover:via-fuchsia-400 hover:to-indigo-400 focus-visible:ring-2 focus-visible:ring-rose-400/40"
-                >
-                  <span className="hidden sm:inline">Upgrade to Pro</span>
-                  <span className="sm:hidden">Upgrade</span>
-                </Button>
-              </Link>
+              {usage?.plan === 'free' && (
+                <Link href="/pricing" prefetch>
+                  <Button
+                    className="h-9 rounded-full px-4 text-sm font-medium text-white bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-500 hover:from-rose-400 hover:via-fuchsia-400 hover:to-indigo-400 focus-visible:ring-2 focus-visible:ring-rose-400/40"
+                  >
+                    <span className="hidden sm:inline">Upgrade to Pro</span>
+                    <span className="sm:hidden">Upgrade</span>
+                  </Button>
+                </Link>
+              )}
             </>
           )}
           <DropdownMenu>

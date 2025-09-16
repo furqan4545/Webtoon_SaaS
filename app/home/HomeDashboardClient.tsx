@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/utils/supabase/client";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 type ProjectStatus = "draft" | "in_progress" | "completed" | "published";
 
@@ -27,9 +28,29 @@ type HomeDashboardClientProps = {
 
 export default function HomeDashboardClient({ initialProjects = [] }: HomeDashboardClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [sortBy, setSortBy] = useState<"modified" | "title">("modified");
   const [statusFilter, setStatusFilter] = useState<"all" | ProjectStatus>("all");
+
+  // Handle upgrade success toast
+  useEffect(() => {
+    const upgraded = searchParams.get('upgraded');
+    const plan = searchParams.get('plan');
+    
+    if (upgraded === 'true' && plan) {
+      toast.success(`🎉 Successfully upgraded to ${plan.toUpperCase()}!`, {
+        description: `Your account has been upgraded and credits have been added.`,
+        duration: 5000,
+      });
+      
+      // Clean up URL parameters
+      const url = new URL(window.location.href);
+      url.searchParams.delete('upgraded');
+      url.searchParams.delete('plan');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [searchParams]);
 
   // Local cache pruning helpers (TTL + LRU)
   const pruneOldCaches = (newProjectId: string) => {
