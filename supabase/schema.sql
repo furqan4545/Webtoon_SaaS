@@ -9,9 +9,10 @@ create table if not exists public.profiles (
   plan text not null default 'free', -- 'free' | 'pro' | 'enterprise'
   month_start date not null default date_trunc('month', now())::date,
   images_generated int not null default 0,
-  monthly_base_limit int not null default 50, -- Credits per month
+  monthly_base_limit int not null default 50, -- Total credits accumulated
   monthly_used int not null default 0, -- Credits used this month
-  monthly_bonus_credits int not null default 0, -- Bonus credits
+  monthly_bonus_credits int not null default 0, -- Bonus credits (ignored)
+  current_plan_credits int not null default 50, -- Credits for current subscription plan (for monthly deposits)
   email text,
   full_name text,
   avatar_url text,
@@ -210,6 +211,7 @@ alter table if exists public.profiles add column if not exists avatar_url text;
 alter table if exists public.profiles add column if not exists monthly_base_limit int not null default 50;
 alter table if exists public.profiles add column if not exists monthly_used int not null default 0;
 alter table if exists public.profiles add column if not exists monthly_bonus_credits int not null default 0;
+alter table if exists public.profiles add column if not exists current_plan_credits int not null default 50;
 alter table if exists public.projects add column if not exists art_style text;
 alter table if exists public.projects add column if not exists steps int not null default 0;
 alter table if exists public.characters add column if not exists art_style text;

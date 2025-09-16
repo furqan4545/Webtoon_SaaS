@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     // Get all users with paid plans
     const { data: profiles, error: fetchError } = await supabase
       .from('profiles')
-      .select('user_id, plan, monthly_base_limit, monthly_bonus_credits, lifetime_credits_purchased')
+      .select('user_id, plan, monthly_base_limit, current_plan_credits, lifetime_credits_purchased')
       .in('plan', ['pro', 'enterprise']);
       
     if (fetchError) {
@@ -30,23 +30,23 @@ export async function POST(request: NextRequest) {
     
     for (const profile of profiles || []) {
       try {
-        // Calculate monthly credits based on plan
+        // Calculate monthly credits based on current plan
         let monthlyCredits = 0;
         if (profile.plan === 'pro') {
-          monthlyCredits = profile.monthly_base_limit || 0;
+          monthlyCredits = profile.current_plan_credits || 0;
         } else if (profile.plan === 'enterprise') {
           monthlyCredits = 999999; // Unlimited
         }
 
-        // Add monthly credits as bonus credits
-        const newBonusCredits = (profile.monthly_bonus_credits || 0) + monthlyCredits;
+        // Add monthly credits to total credits
+        const newMonthlyLimit = (profile.monthly_base_limit || 0) + monthlyCredits;
         const newLifetimePurchased = (profile.lifetime_credits_purchased || 0) + monthlyCredits;
 
         // Update the profile
         const { data: updateResult, error: updateError } = await supabase
           .from('profiles')
           .update({
-            monthly_bonus_credits: newBonusCredits,
+            monthly_base_limit: newMonthlyLimit,
             lifetime_credits_purchased: newLifetimePurchased,
             month_start: new Date().toISOString().split('T')[0], // Reset month start
             monthly_used: 0, // Reset monthly usage

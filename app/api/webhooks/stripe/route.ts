@@ -60,20 +60,20 @@ export async function POST(request: NextRequest) {
         const currentBonusCredits = currentProfile?.monthly_bonus_credits || 0;
         const currentLifetimePurchased = currentProfile?.lifetime_credits_purchased || 0;
         
-        // ALWAYS increment credits for any plan change (upgrade or downgrade)
-        // monthly_base_limit: Add new plan's credits to existing monthly limit
-        // monthly_bonus_credits: Add new credits as bonus (preserves existing bonus)
+        // SIMPLE CREDIT SYSTEM: Just append credits to monthly_base_limit
+        // monthly_base_limit: Add new credits to existing total
+        // current_plan_credits: Store the plan's credits for monthly deposits
         // lifetime_credits_purchased: Add new credits to lifetime total
-        const newMonthlyLimit = currentMonthlyLimit + newCredits; // ALWAYS ADD to existing monthly limit
-        const newBonusCredits = currentBonusCredits + newCredits; // Always add as bonus
+        const newMonthlyLimit = currentMonthlyLimit + newCredits; // ALWAYS ADD to existing credits
         const newLifetimePurchased = currentLifetimePurchased + newCredits; // Always increment lifetime
-        
+
         const upsertData = {
           user_id: userId,
           plan: planType === 'pro' ? 'pro' : 'enterprise',
-          monthly_base_limit: newMonthlyLimit,
+          monthly_base_limit: newMonthlyLimit, // Total credits accumulated
           monthly_used: currentProfile?.monthly_used || 0, // Keep current usage
-          monthly_bonus_credits: newBonusCredits,
+          monthly_bonus_credits: 0, // Ignore bonus credits
+          current_plan_credits: newCredits, // Store plan credits for monthly deposits
           lifetime_credits_purchased: newLifetimePurchased,
           month_start: currentProfile?.month_start || new Date().toISOString().split('T')[0],
         };
@@ -82,10 +82,8 @@ export async function POST(request: NextRequest) {
         console.log('🔍 Credit calculation (ALWAYS INCREMENT):', {
           newCredits,
           currentMonthlyLimit,
-          currentBonusCredits,
           currentLifetimePurchased,
           newMonthlyLimit: `${currentMonthlyLimit} + ${newCredits} = ${newMonthlyLimit}`,
-          newBonusCredits: `${currentBonusCredits} + ${newCredits} = ${newBonusCredits}`,
           newLifetimePurchased: `${currentLifetimePurchased} + ${newCredits} = ${newLifetimePurchased}`
         });
         

@@ -63,21 +63,27 @@ export default function ManageAccountPage() {
         if (user) {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('plan, monthly_base_limit')
+            .select('plan, monthly_base_limit, current_plan_credits, lifetime_credits_purchased')
             .eq('user_id', user.id)
             .single();
           
           if (profile) {
             setCurrentPlan(profile.plan || 'free');
-            setCurrentPlanCredits(profile.monthly_base_limit || 50);
             
-            // Set slider to current plan if it's a PRO plan
+            // Set current plan credits and slider position
             if (profile.plan === 'pro') {
-              const currentLimit = profile.monthly_base_limit;
-              const planIndex = PRO_PLANS.findIndex(plan => plan.credits === currentLimit);
+              const planCredits = profile.current_plan_credits || 100;
+              setCurrentPlanCredits(planCredits);
+              
+              // Find the plan that matches the current plan credits
+              const planIndex = PRO_PLANS.findIndex(plan => plan.credits === planCredits);
               if (planIndex !== -1) {
                 setSelectedPlanIndex(planIndex);
               }
+            } else if (profile.plan === 'enterprise') {
+              setCurrentPlanCredits(999999); // Unlimited
+            } else {
+              setCurrentPlanCredits(50); // Free plan
             }
           }
         }
