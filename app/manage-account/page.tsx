@@ -303,7 +303,7 @@ export default function ManageAccountPage() {
                 ) : !isProPlanDifferent() ? (
                   'Current Plan'
                 ) : (
-                  'Update to Pro'
+                  'Update Plan'
                 )}
               </Button>
             </CardContent>
