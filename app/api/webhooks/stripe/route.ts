@@ -40,28 +40,14 @@ export async function POST(request: NextRequest) {
         // Update user's plan and credits in Supabase
         const supabase = createClient();
         
-        // First, check if user profile exists
-        const { data: existingProfile, error: fetchError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
-          
-        console.log('🔍 Existing profile:', existingProfile);
-        console.log('🔍 Fetch error:', fetchError);
-        
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          console.error('❌ Error fetching user profile:', fetchError);
-          return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
-        }
-        
-        // Update the user's profile with new plan and credits
+        // Use upsert to create or update the profile (like auth callbacks do)
         console.log('🔍 DEBUG: About to update user profile');
         console.log('🔍 User ID:', userId);
         console.log('🔍 Plan Type:', planType);
         console.log('🔍 Credits:', credits);
         
-        const updateData = {
+        const upsertData = {
+          user_id: userId,
           plan: planType === 'pro' ? 'pro' : 'enterprise',
           monthly_base_limit: credits === 'unlimited' ? 999999 : parseInt(credits),
           monthly_used: 0,
@@ -70,32 +56,22 @@ export async function POST(request: NextRequest) {
           month_start: new Date().toISOString().split('T')[0],
         };
         
-        console.log('🔍 Update data:', updateData);
+        console.log('🔍 Upsert data:', upsertData);
         
-        const { data: updateResult, error: updateError } = await supabase
+        const { data: upsertResult, error: upsertError } = await supabase
           .from('profiles')
-          .update(updateData)
-          .eq('user_id', userId)
+          .upsert(upsertData, { onConflict: 'user_id' })
           .select();
           
-        console.log('🔍 Update result:', updateResult);
-        console.log('🔍 Update error:', updateError);
+        console.log('🔍 Upsert result:', upsertResult);
+        console.log('🔍 Upsert error:', upsertError);
 
-        if (updateError) {
-          console.error('Error updating user profile:', updateError);
-          console.error('Update data:', {
-            plan: planType === 'pro' ? 'pro' : 'enterprise',
-            monthly_base_limit: credits === 'unlimited' ? 999999 : parseInt(credits),
-            monthly_used: 0,
-            monthly_bonus_credits: 0,
-            lifetime_credits_purchased: credits === 'unlimited' ? 999999 : parseInt(credits),
-            month_start: new Date().toISOString().split('T')[0],
-            userId
-          });
-          return NextResponse.json({ error: 'Database update failed' }, { status: 500 });
+        if (upsertError) {
+          console.error('❌ Error upserting user profile:', upsertError);
+          return NextResponse.json({ error: 'Database upsert failed' }, { status: 500 });
         }
 
-        console.log(`✅ Updated user ${userId} to ${planType} plan with ${credits} credits`);
+        console.log(`✅ Upserted user ${userId} to ${planType} plan with ${credits} credits`);
         break;
       }
 
