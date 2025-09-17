@@ -208,7 +208,7 @@ export default function WebtoonBuilder() {
   const [isPublishing, setIsPublishing] = useState<boolean>(false);
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
   type ActiveBadge = 'none' | 'remove' | 'edit';
-  const [activeBadge, setActiveBadge] = useState<ActiveBadge>('none');
+  const [activeBadge, setActiveBadge] = useState<ActiveBadge>('edit');
   const supabase = createBrowserSupabase();
   const [artStyle, setArtStyle] = useState<string>("");
   const [refImages, setRefImages] = useState<Array<{ name: string; dataUrl: string }>>([]);
@@ -849,8 +849,10 @@ export default function WebtoonBuilder() {
       { role: 'system', text: `You are currently editing Scene ${selectedSceneIndex + 1}` },
       { role: 'assistant', text: `Scene description: ${scenes[selectedSceneIndex].description}` },
     ]);
-    // Auto-disable badges if no image for this scene
-    if (!scenes[selectedSceneIndex]?.imageDataUrl) {
+    // Auto-toggle Edit badge: On if image exists, otherwise Off
+    if (scenes[selectedSceneIndex]?.imageDataUrl) {
+      setActiveBadge('edit');
+    } else {
       setActiveBadge('none');
     }
   }, [selectedSceneIndex]);
