@@ -484,31 +484,34 @@ export default function WebtoonBuilder() {
       // Show the base image immediately (intermediate display only)
       setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: data.image } : s));
   
-      // 2) SFX pass (try once)
+      // 2) SFX pass (temporarily disabled)
       let finalImage = data.image;
       let usedCalls = 1;
-      try {
-        setScenes(prev => prev.map((s, i) => i === index ? { ...s, generationPhase: 'sfx' } : s));
-        const res2 = await fetch('/api/add-image-soundEffects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imageDataUrl: data.image,
-            instruction: 'add webtoon style sound effects based on the whats going on in the scene. Only use English sound effects. Make sure to add not more than 1 sound effect, if the scene is not silent. If the scene is silent, do not add any sound effects.',
-            projectId: projectId || undefined,
-            sceneNo: index + 1,
-          })
-        });
-        const data2 = await res2.json();
-        if (res2.ok && data2?.success && data2?.image) {
-          finalImage = data2.image;
-          usedCalls = 2;
-          // Replace visible image with SFX final
-          setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: finalImage } : s));
+      const SFX_ENABLED = false;
+      if (SFX_ENABLED) {
+        try {
+          setScenes(prev => prev.map((s, i) => i === index ? { ...s, generationPhase: 'sfx' } : s));
+          const res2 = await fetch('/api/add-image-soundEffects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageDataUrl: data.image,
+              instruction: 'add webtoon style sound effects based on the whats going on in the scene. Only use English sound effects. Make sure to add not more than 1 sound effect, if the scene is not silent. If the scene is silent, do not add any sound effects.',
+              projectId: projectId || undefined,
+              sceneNo: index + 1,
+            })
+          });
+          const data2 = await res2.json();
+          if (res2.ok && data2?.success && data2?.image) {
+            finalImage = data2.image;
+            usedCalls = 2;
+            // Replace visible image with SFX final
+            setScenes(prev => prev.map((s, i) => i === index ? { ...s, imageDataUrl: finalImage } : s));
+          }
+        } catch (err) {
+          // If SFX fails, we simply keep the base image
+          console.error('add-image-soundEffects failed', err);
         }
-      } catch (err) {
-        // If SFX fails, we simply keep the base image
-        console.error('add-image-soundEffects failed', err);
       }
   
       // Push EXACTLY ONE image to the panel's stack:
