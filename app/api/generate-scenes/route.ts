@@ -66,6 +66,17 @@ export async function POST(request: NextRequest) {
       - We feed **Story_Text** directly into image generation. It must be a concrete, visual description of what is happening *now* in this scene.
       - Avoid abstract summaries (e.g., “things get tense”). Instead, describe observable, draw-able facts (who/what/where/body language/prop).
       
+      GAZE & ORIENTATION LOCK (MANDATORY)
+      - Characters must **NOT** face the camera or make eye contact with the viewer.
+      - Compose using one of: **OTS-left**, **OTS-right**, **profile-3/4-left**, **profile-3/4-right**, **back-3/4**.
+      - Always specify **who the subject is looking at or toward** (their eye-line target).
+      - Prefer **MS/WS** for action beats; use **CU/ECU** only for hands/props/eyes **without** eye contact to camera.
+
+      BLOCKLIST (hard no in Scene_Description and text):
+      - Multiple chained actions with “and then”
+      - Multiple chained emotions with actions.
+      
+
       FIELD DEFINITIONS
       - **Story_Text** (CONCRETE VISUAL FACT SENTENCE):
         - 1–2 sentences, 25–55 words total, present tense, third person.
@@ -75,13 +86,14 @@ export async function POST(request: NextRequest) {
       
       - **Scene_Description** (CAMERA/ART DIRECTION):
         - 1–2 sentences for the illustrator. Include shot type (WS/MS/CU/ECU/OTS), angle (eye/low/high), lighting/mood, composition cues, character pose/expression, essential environment.
-        - Webtoon framing: vertical readability, some negative space, no direct-to-camera gaze, no text overlays/captions.
+        - Webtoon framing: vertical readability, some negative space, no direct-to-camera gaze.
       
       QUALITY CHECKS (BEFORE RETURN)
       - [✓] Exactly one beat per scene; no setup+payoff in the same scene.
       - [✓] 6 ≤ total_scenes ≤ 24 and equals the number of scene entries.
       - [✓] **Story_Text** is concrete, visual, and self-sufficient (draw-able without the rest of the story).
       - [✓] No extra keys, no markdown, no commentary, valid JSON (UTF-8, no trailing commas).
+      - [✓] No blocklisted phrases.
       
       OUTPUT FORMAT (JSON ONLY):
       {
