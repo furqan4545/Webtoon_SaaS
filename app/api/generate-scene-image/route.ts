@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     // );
 
     const prompt = sanitize(
-      `generate a dynamic webtoon panel PNG image, tilted diagonally across the frame, drawn in dramatic manhwa style. Focus on the scene. The background should fade into soft details to keep emphasis on the characters and action. Use bold outlines, vibrant colors, and dramatic lighting to heighten tension. Add stylized motion lines, effects, or text (examples: ‘WHOOSH’, ‘LEAN’, etc.) if it matches the scene. Only 1 sound effect (text) should be added if the scene is not silent. Keep the composition cropped so the main subject(s) dominate the tilted frame, giving it a cinematic, immersive feeling. \nStyle: ${styleText}. \n\nScene Description: ${sceneDescription}\nStory Theme: ${storyText}`
+      `generate a dynamic webtoon panel PNG image, tilted diagonally across the frame, drawn in dramatic manhwa style. Focus on the scene. The background should fade into soft details to keep emphasis on the characters and action. Use bold outlines, vibrant colors, and dramatic lighting to heighten tension. Add stylized motion lines, effects, or text (examples: ‘WHOOSH’, ‘LEAN’, etc.) if it matches the scene. Only 1 sound effect (text) should be added if the scene is not silent. Use english text only for sound effects or anything. Keep the composition cropped so the main subject(s) dominate the tilted frame, giving it a cinematic, immersive feeling. \nStyle: ${styleText}. \n\nScene Description: ${sceneDescription}\nStory Theme: ${storyText}`
     );
     
 
