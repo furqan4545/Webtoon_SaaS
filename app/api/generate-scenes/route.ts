@@ -53,47 +53,35 @@ export async function POST(request: NextRequest) {
       ${story}
       
       OBJECTIVE
-      - Transform the story into a sequence of ATOMIC scenes (webtoon panels) that read top-to-bottom and sustain interest.
-      - Each scene contains exactly ONE beat: either one action OR one reaction OR one micro-turn in emotion. Never combine cause and reaction in the same scene.
+      - Convert the story into a sequence of ATOMIC scenes (webtoon panels).
+      - Each scene = exactly ONE visual beat (an action OR a reaction OR a decisive emotion shift).
       
-      SCENE SPLITTING RULES (VERY IMPORTANT)
-      1) Atomic Beat Rule: one verb/intent per scene. If a character acts and another reacts, that's two scenes.
-      2) No-Combo Rule: do NOT join "setup + payoff" in one scene. The reaction goes in the next scene.
-      3) Split when ANY of these change: location, time, goal, focal subject, emotion, or when a character enters/exits.
-      4) Dialogue Turns: if dialogue drives the beat, treat each turn or decisive interruption as its own scene.
-      5) Suspense/Cliffhanger: end a scene right before a reveal or decision when possible; the reveal is the next scene.
+      SCENE SPLITTING RULES
+      1) One beat per scene. If A acts and B reacts, that's two scenes.
+      2) Split on changes in location, time, goal, focal subject, or emotional state.
+      3) Keep 6–24 scenes. Prefer more simple beats over fewer overloaded ones.
+      4) Maintain continuity: names/roles/props remain consistent across scenes.
       
-      PACING
-      - Total scenes must be between 6 and 24.
-      - Heuristic: shorter stories lean 6–10 scenes; medium 10–18; longer 18–24. Prefer more—but simpler—beats over fewer, overloaded scenes.
+      TEXT FIDELITY (NO VAGUENESS)
+      - We feed **Story_Text** directly into image generation. It must be a concrete, visual description of what is happening *now* in this scene.
+      - Avoid abstract summaries (e.g., “things get tense”). Instead, describe observable, draw-able facts (who/what/where/body language/prop).
       
-      CONTINUITY & CLARITY
-      - Ensure each scene clearly links to the previous: carry over the same location/props/characters unless a split cue (time jump, cutaway) is present.
-      - Keep character count per scene minimal (ideally 1–3).
-      - Avoid clutter: each scene should depict a single focal action/emotion that will be easy to illustrate.
+      FIELD DEFINITIONS
+      - **Story_Text** (CONCRETE VISUAL FACT SENTENCE):
+        - 1–2 sentences, 25–55 words total, present tense, third person.
+        - Must include: [who (use names or a consistent noun phrase)] + [single key action] + [object/target] + [clear setting cue] + [visible emotion/expression or body language] + [1 salient prop or detail if relevant].
+        - No internal thoughts (show, don't tell). No future/references to other scenes. No multiple chained actions with “and then”. Minimal adverbs; prefer strong verbs and nouns.
+        - If names are absent, invent short consistent labels (e.g., “the young chef”, “the tired office worker”) and reuse exactly.
       
-      IMAGE DESCRIPTION GUIDELINES (for later generation)
-      - “Scene_Description” is 1–2 concise sentences in present tense describing the frame to draw.
-      - Include: shot type (WS/MS/CU/ECU/OTS), angle (low/high/eye-level), lighting/mood, key visual focus, character pose/expression, and essential environment.
-      - Webtoon framing: avoid direct-to-camera gaze; allow negative space; keep composition readable on a tall phone screen.
-      - No text overlays, captions, or camera jargon beyond shot/angle terms.
-      - Keep backgrounds suggestive, not over-detailed; emphasize the beat.
+      - **Scene_Description** (CAMERA/ART DIRECTION):
+        - 1–2 sentences for the illustrator. Include shot type (WS/MS/CU/ECU/OTS), angle (eye/low/high), lighting/mood, composition cues, character pose/expression, essential environment.
+        - Webtoon framing: vertical readability, some negative space, no direct-to-camera gaze, no text overlays/captions.
       
-      OUTPUT REQUIREMENTS
-      - Return STRICT JSON (UTF-8). No trailing commas. No markdown. No commentary.
-      - Keys allowed at top level: "story_title", "total_scenes", "scenes".
-      - For each scene, ONLY provide: "Story_Text" and "Scene_Description".
-      - "Story_Text" = 1–2 sentences summarizing JUST the beat that happens in this scene (pulled or paraphrased from the story).
-      - "Scene_Description" = visual directives for the illustrator as specified above.
-      - Scenes must be 1-indexed as "scene_1", "scene_2", ... with no gaps.
-      - "total_scenes" must equal the number of scene entries.
-      
-      QUALITY CHECK BEFORE RETURNING
-      - [✓] Each scene contains exactly one beat (no chained “and then…” actions).
-      - [✓] Continuity is clear from one scene to the next.
-      - [✓] 6 ≤ total_scenes ≤ 24 and equals the count of provided scenes.
-      - [✓] No extra keys beyond the allowed schema.
-      - [✓] No character looks directly at the camera in any Scene_Description.
+      QUALITY CHECKS (BEFORE RETURN)
+      - [✓] Exactly one beat per scene; no setup+payoff in the same scene.
+      - [✓] 6 ≤ total_scenes ≤ 24 and equals the number of scene entries.
+      - [✓] **Story_Text** is concrete, visual, and self-sufficient (draw-able without the rest of the story).
+      - [✓] No extra keys, no markdown, no commentary, valid JSON (UTF-8, no trailing commas).
       
       OUTPUT FORMAT (JSON ONLY):
       {
