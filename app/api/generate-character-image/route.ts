@@ -42,20 +42,6 @@ export async function POST(request: NextRequest) {
     // const systemInstruction = sanitize(
     //   `You are generating a consistent character model sheet for production. Render a single, front-facing character with clean line art and flat colors, maintaining stable identity markers so the character remains consistent across scenes. Avoid multiple characters, busy backgrounds, watermarks, or text.`
     // );
-
-    // const prompt = sanitize(
-    //   `${systemInstruction}\n\nCharacter name: ${name || "Unnamed"}.\nCharacter description: ${description}.\nDesired art style: ${(artStyle || '').trim() || 'clean outlines, expressive face, readable silhouette'}.\nUse a studio sheet white background.`
-    // );
-
-    const systemInstruction = sanitize(`
-      Generate a WEBTOON character model sheet for ONE character.
-      Show exactly three full-body views: FRONT, LEFT PROFILE (90°), RIGHT PROFILE (90°).
-      Use webtoon aesthetics: clean ink lines (variable line weight), cel-shaded color (2–3 tones), minimal soft gradients; not photorealistic.
-      Plain white sheet background; no scenery, props, logos, or watermarks.
-      Neutral stance, arms at sides; consistent scale/outfit/identity across views.
-      Include only the character name centered at the top and small pose labels: Front / Left / Right.
-      No cropping or dynamic perspective.
-      `);
       
       const prompt = sanitize(`
       Name: ${name || "Unnamed"}

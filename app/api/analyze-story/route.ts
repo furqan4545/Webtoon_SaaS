@@ -54,21 +54,77 @@ export async function POST(request: NextRequest) {
     const sanitizedStory = sanitizeText(story);
     const sanitizedArtStyle = sanitizeText(artStyle || "webtoon");
 
-    // const systemPrompt = sanitizeText(
-    //   "You are an expert character analyst for WEBTOON production. Return ONLY JSON strictly following the required schema."
-    // );
 
+    // const systemPrompt = sanitizeText(
+    //   "You are an expert character & creature analyst for WEBTOON production. Return ONLY JSON strictly following the required schema."
+    // );
+    
     // const userPrompt = sanitizeText(
-    //   `SOURCE STORY (full text):\n${sanitizedStory}\n\nINSTRUCTIONS:\n\n- Identify unique human/humanoid characters who appear or speak. Merge aliases into one.\n- If a name exists, use it. Otherwise assign "Person 1", "Person 2", ... in order of importance.\n- Infer missing traits from role, personality, era, culture. Never write "unknown"; pick a reasonable specific value.\n- Keep gender strictly "male" or "female".\n- Limit to at most 6 characters (rank by importance).\n\n"Character_Description" MUST be one paragraph (120-200 words) covering:\n* role/occupation/archetype and story relevance\n* age range and overall height/build impression\n* ethnicity/culture cues (skin undertone, hair texture)\n* face shape, jaw, nose type, brow thickness, eye shape/size, lip shape\n* hair length, silhouette, parting, fringe\n* 1-2 unique, stable marks (mole/scar/streak) for identity anchoring\n* default outfit with 2-4 hex color codes like #RRGGBB\n* signature props if implied\n* overall vibe/posture/movement cues\n\nOUTPUT FORMAT (JSON ONLY, no trailing commas):\n{\n"story_title": string,\n"total_characters": number,\n"characters": [\n  {\n    "id": "c1",\n    "name": string,\n    "role": string,\n    "gender": "male" | "female",\n    "Character_Description": string\n  }\n]\n}\n\nCONSTRAINTS:\n- Return ONLY JSON. No extra keys. No markdown. No prose.`
+    //   `SOURCE STORY (full text):\n${sanitizedStory}\n\nINSTRUCTIONS:\n\n- Identify unique living beings who appear on-page or are explicitly mentioned as individuals. This includes humans, humanoids, monsters, animals, spirits, and other living creatures. Exclude inanimate objects, locations, organizations, generic crowds, and purely conceptual entities.\n- Merge aliases and titles into a single identity.\n- If a name exists, use it. Otherwise assign "Entity 1", "Entity 2", ... in order of narrative importance.\n- Infer missing traits from role, personality, era, culture, and species. Never write "unknown"; choose a specific plausible value.\n- Keep gender strictly "male" or "female" (infer from cues even for non-human creatures).\n- Limit the total to at most 6 entities (rank by importance).\n\n"Character_Description" MUST be one paragraph (120–200 words) that enables consistent visual generation. It must cover:\n* role/occupation/archetype and story relevance (for creatures, include species and whether sentient/animalistic)\n* age range (or life stage) and overall size/height/build impression\n* ethnicity/culture cues for humans/humanoids (skin undertone, hair texture); for non-humans, natural coloration/patterns (fur/scale/feather/skin)\n* facial/head features: for humans—face shape, jaw, nose type, brow thickness, eye shape/size, lip shape; for non-humans—species-appropriate equivalents (muzzle/snout/beak, ear type, crest/horns, eye set/shape, dentition)\n* hair/fur/manes/feathers: length, silhouette, parting/crest/fringe\n* 1–2 unique, stable marks for identity anchoring (mole/scar/streak/notch/patch)\n* default outfit and 2–4 hex color codes like #RRGGBB (for non-clothed creatures, give a natural palette with hex codes)\n* signature props or gear if implied (e.g., staff, collar, saddle, necklace)\n* overall vibe/posture/movement cues (e.g., confident stride, skittish, predatory prowl)\n\nOUTPUT FORMAT (JSON ONLY, no trailing commas):\n{\n"story_title": string,\n"total_characters": number,\n"characters": [\n  {\n    "id": "c1",\n    "name": string,\n    "role": string,\n    "gender": "male" | "female",\n    "Character_Description": string\n  }\n]\n}\n\nCONSTRAINTS:\n- Return ONLY JSON—no markdown, no comments, no extra keys.\n- The "role" should concisely state species + function (e.g., "human botanist", "wolf pack leader", "ancient forest spirit").`
     // );
 
     const systemPrompt = sanitizeText(
-      "You are an expert character & creature analyst for WEBTOON production. Return ONLY JSON strictly following the required schema."
+      "You analyze stories and produce a compact WEBTOON character bible with a single, consistent art direction. Read carefully, infer missing specifics, and return JSON only that follows the schema. Keep outputs concise, visual, and production-ready."
     );
     
     const userPrompt = sanitizeText(
-      `SOURCE STORY (full text):\n${sanitizedStory}\n\nINSTRUCTIONS:\n\n- Identify unique living beings who appear on-page or are explicitly mentioned as individuals. This includes humans, humanoids, monsters, animals, spirits, and other living creatures. Exclude inanimate objects, locations, organizations, generic crowds, and purely conceptual entities.\n- Merge aliases and titles into a single identity.\n- If a name exists, use it. Otherwise assign "Entity 1", "Entity 2", ... in order of narrative importance.\n- Infer missing traits from role, personality, era, culture, and species. Never write "unknown"; choose a specific plausible value.\n- Keep gender strictly "male" or "female" (infer from cues even for non-human creatures).\n- Limit the total to at most 6 entities (rank by importance).\n\n"Character_Description" MUST be one paragraph (120–200 words) that enables consistent visual generation. It must cover:\n* role/occupation/archetype and story relevance (for creatures, include species and whether sentient/animalistic)\n* age range (or life stage) and overall size/height/build impression\n* ethnicity/culture cues for humans/humanoids (skin undertone, hair texture); for non-humans, natural coloration/patterns (fur/scale/feather/skin)\n* facial/head features: for humans—face shape, jaw, nose type, brow thickness, eye shape/size, lip shape; for non-humans—species-appropriate equivalents (muzzle/snout/beak, ear type, crest/horns, eye set/shape, dentition)\n* hair/fur/manes/feathers: length, silhouette, parting/crest/fringe\n* 1–2 unique, stable marks for identity anchoring (mole/scar/streak/notch/patch)\n* default outfit and 2–4 hex color codes like #RRGGBB (for non-clothed creatures, give a natural palette with hex codes)\n* signature props or gear if implied (e.g., staff, collar, saddle, necklace)\n* overall vibe/posture/movement cues (e.g., confident stride, skittish, predatory prowl)\n\nOUTPUT FORMAT (JSON ONLY, no trailing commas):\n{\n"story_title": string,\n"total_characters": number,\n"characters": [\n  {\n    "id": "c1",\n    "name": string,\n    "role": string,\n    "gender": "male" | "female",\n    "Character_Description": string\n  }\n]\n}\n\nCONSTRAINTS:\n- Return ONLY JSON—no markdown, no comments, no extra keys.\n- The "role" should concisely state species + function (e.g., "human botanist", "wolf pack leader", "ancient forest spirit").`
+      `SOURCE STORY (full text):
+    ${sanitizedStory}
+    
+    TASK
+    Create a unified WEBTOON character bible. First, infer a single shared art style from the story's genre, tone, era, and culture. Then list up to 6 distinct living entities that appear or are explicitly mentioned as individuals (humans, humanoids, creatures, spirits, animals). Merge aliases/titles into one identity. If unnamed, assign "Entity 1", "Entity 2", ... by narrative importance. Choose specific plausible values; never use placeholders.
+    
+    STYLE LOCK (applies to every character)
+    - Linework: define weight/cleanliness.
+    - Color: flat/cell shading typical of WEBTOON; limited, reusable palette.
+    - Finish: minimal background noise; production sheet clarity.
+    - Consistency tokens: 5–10 short tags that anchor look across generations (e.g., era, fashion lane, rendering cues).
+    - Canonical prompt prefix: a single sentence that precedes any character prompt to keep style unified.
+    
+    For each character, provide stable visual anchors and wardrobe baselines so future generations match. Keep language positive and descriptive (no “avoid/without/not”). Keep each description ~120–160 words.
+    
+    OUTPUT FORMAT (JSON ONLY)
+    {
+      "story_title": string,
+      "style_bible": {
+        "art_style_summary": string,            // one paragraph describing the shared look
+        "consistency_tokens": [string],         // 5–10 compact tags for style lock
+        "canonical_prompt_prefix": string       // one sentence to prepend to any render
+      },
+      "total_characters": number,
+      "characters": [
+        {
+          "id": "c1",
+          "name": string,
+          "role": string,                       // species + function, e.g., "human botanist", "forest spirit guide"
+          "gender": "male" | "female",
+          "story_context": string,              // 1–2 sentences: where they fit in this story
+          "identity_marks": [string],           // 1–2 distinctive, persistent markers (e.g., scar under left eye)
+          "build_and_age": string,              // age band + height/build impression
+          "head_and_face": string,              // shape, eyes, nose, lips/brow; or species-appropriate equivalents
+          "hair_or_fur": string,                // length/silhouette/part/crest
+          "wardrobe_baseline": [string],        // 2–4 recurring clothing items described abstractly
+          "canonical_palette": [string],        // 3–5 hex codes like "#RRGGBB"
+          "signature_props": [string],          // optional recurring gear/props
+          "pose_and_vibe": string,              // movement/posture that matches personality
+          "render_sheet_prompts": {
+            "front": string,                    // one line using canonical_prompt_prefix + identity tokens
+            "left_profile": string,
+            "right_profile": string,
+            "three_quarter": string
+          },
+          "prompt_tags": [string]               // 6–12 compact tags for this character (adds to consistency_tokens)
+        }
+      ]
+    }
+    
+    CONSTRAINTS
+    - Return JSON only. No markdown, comments, or extra keys.
+    - Keep all characters aligned to the shared style_bible (same finish, palette logic, and prompt prefix).
+    - All color values must be hex codes where applicable.
+    - Limit to at most 6 characters, ranked by story importance.`
     );
+    
     
 
     const completion = await openai.chat.completions.create({
