@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     // );
 
     const systemPrompt = sanitizeText(
-      "You analyze stories and produce a compact WEBTOON character bible with a single, consistent art direction. Read carefully, infer missing specifics, and return JSON only that follows the schema. Keep outputs concise, visual, and production-ready."
+      "You are an expert WEBTOON character/creature analyst. Read the story and return ONLY JSON following the schema exactly. Keep language positive and descriptive (no negatives). Do not include art style, ethnicity, palettes, or rendering instructions."
     );
     
     const userPrompt = sanitizeText(
@@ -72,56 +72,35 @@ export async function POST(request: NextRequest) {
     ${sanitizedStory}
     
     TASK
-    Create a unified WEBTOON character bible. First, infer a single shared art style from the story's genre, tone, era, and culture. Then list up to 6 distinct living entities that appear or are explicitly mentioned as individuals (humans, humanoids, creatures, spirits, animals). Merge aliases/titles into one identity. If unnamed, assign "Entity 1", "Entity 2", ... by narrative importance. Choose specific plausible values; never use placeholders.
+    Identify up to 6 distinct living entities that appear on-page or are explicitly mentioned (humans, humanoids, animals, spirits, creatures). Merge aliases/titles into one identity. If unnamed, assign "Entity 1", "Entity 2", ... by narrative importance. Choose specific plausible values; never output placeholders.
     
-    STYLE LOCK (applies to every character)
-    - Linework: define weight/cleanliness.
-    - Color: flat/cell shading typical of WEBTOON; limited, reusable palette.
-    - Finish: minimal background noise; production sheet clarity.
-    - Consistency tokens: 5–10 short tags that anchor look across generations (e.g., era, fashion lane, rendering cues).
-    - Canonical prompt prefix: a single sentence that precedes any character prompt to keep style unified.
+    "Character_Description" MUST be a single paragraph (120–160 words) focused ONLY on narrative and consistency—not visual style. Cover:
+    • role/function in the story and current goal
+    • relationships to other named entities (allies, rivals, family, mentor, etc.)
+    • personality and recurring behaviors (speech patterns, mannerisms)
+    • recurring wardrobe items by category (e.g., hooded jacket, utility belt, school uniform)—no colors or style tags
+    • recurring props/gear (e.g., notebook, staff, whistle) if implied
+    • recurring settings where the character is usually found (school, dojo, forest outpost) when clear
     
-    For each character, provide stable visual anchors and wardrobe baselines so future generations match. Keep language positive and descriptive (no “avoid/without/not”). Keep each description ~120–160 words.
-    
-    OUTPUT FORMAT (JSON ONLY)
+    OUTPUT FORMAT (JSON ONLY, no trailing commas):
     {
       "story_title": string,
-      "style_bible": {
-        "art_style_summary": string,            // one paragraph describing the shared look
-        "consistency_tokens": [string],         // 5–10 compact tags for style lock
-        "canonical_prompt_prefix": string       // one sentence to prepend to any render
-      },
       "total_characters": number,
       "characters": [
         {
           "id": "c1",
           "name": string,
-          "role": string,                       // species + function, e.g., "human botanist", "forest spirit guide"
+          "role": string,                     
           "gender": "male" | "female",
-          "story_context": string,              // 1–2 sentences: where they fit in this story
-          "identity_marks": [string],           // 1–2 distinctive, persistent markers (e.g., scar under left eye)
-          "build_and_age": string,              // age band + height/build impression
-          "head_and_face": string,              // shape, eyes, nose, lips/brow; or species-appropriate equivalents
-          "hair_or_fur": string,                // length/silhouette/part/crest
-          "wardrobe_baseline": [string],        // 2–4 recurring clothing items described abstractly
-          "canonical_palette": [string],        // 3–5 hex codes like "#RRGGBB"
-          "signature_props": [string],          // optional recurring gear/props
-          "pose_and_vibe": string,              // movement/posture that matches personality
-          "render_sheet_prompts": {
-            "front": string,                    // one line using canonical_prompt_prefix + identity tokens
-            "left_profile": string,
-            "right_profile": string,
-            "three_quarter": string
-          },
-          "prompt_tags": [string]               // 6–12 compact tags for this character (adds to consistency_tokens)
+          "Character_Description": string       // REQUIRED: one paragraph, 120–160 words.
         }
       ]
     }
     
     CONSTRAINTS
     - Return JSON only. No markdown, comments, or extra keys.
-    - Keep all characters aligned to the shared style_bible (same finish, palette logic, and prompt prefix).
-    - All color values must be hex codes where applicable.
+    - Keep all content grounded in the story; infer specifics from context.
+    - Do NOT include art style, ethnicity/culture, color palettes, shading, camera angles, lighting, or rendering terms.
     - Limit to at most 6 characters, ranked by story importance.`
     );
     
