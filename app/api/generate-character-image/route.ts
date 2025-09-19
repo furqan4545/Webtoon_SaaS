@@ -51,8 +51,7 @@ export async function POST(request: NextRequest) {
       Layout: three full-body poses side-by-side (Front faces forward; Left = strict 90°; Right = strict 90°), equal height/spacing, plain white background.
       Identity lock: keep face, hair silhouette, skin tone, outfit/accessories consistent across views.
       Gaze: neutral; only the Front view looks forward; profiles look sideways.
-      Text: title "${name || "Unnamed"}" at top; small labels "Front", "Left", "Right" under the poses.
-      Avoid: studio lighting, photorealism, portrait/beauty-shot aesthetics, cinematic lighting, 3D render, glossy highlights, extra characters/backgrounds.
+      Text: title "${name || "Unnamed"}" at top in english; small labels "Front", "Left", "Right" under the poses.
       `);
 
     // Use the official SDK per docs: https://googleapis.github.io/js-genai/ and npm page
